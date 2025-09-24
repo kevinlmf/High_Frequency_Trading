@@ -9,14 +9,14 @@
 ---
 
 ## Overview
-A complete high-frequency trading system that combines multiple strategy types with comprehensive financial performance analysis. The system processes real market data and generates trading signals using machine learning, traditional quantitative methods, deep learning, and reinforcement learning approaches.
+A complete high-frequency trading system that combines multiple strategy types with comprehensive financial performance analysis. The system processes real market data and generates trading signals using machine learning, traditional quantitative methods, deep learning, and advanced DeepLOB + Transformer approaches.
 
 **Core Features**
-- **Complete strategy comparison**: ML + Traditional + Deep Learning + Reinforcement Learning
+- **Complete strategy comparison**: ML + Traditional + Deep Learning + DeepLOB + Transformer
 - **Comprehensive financial metrics**: Returns, Volatility, Sharpe Ratio, Maximum Drawdown, Calmar Ratio, VaR
 - **Real market data** processing via Yahoo Finance API
 - **59 technical features**: price, volume, momentum, volatility indicators
-- **Multiple strategy types**: Linear/Ridge/Random Forest, Momentum/Mean Reversion/Pairs Trading, LSTM/GRU, PPO/SAC
+- **Multiple strategy types**: Linear/Ridge/Random Forest, Momentum/Mean Reversion/Pairs Trading, LSTM/GRU, DeepLOB + Transformer
 - **Professional financial analysis**: Risk-adjusted performance evaluation
 - **Fast execution**: Complete analysis in under 2 seconds
 
@@ -32,7 +32,7 @@ pip install pandas numpy yfinance scikit-learn
 # Simple signal generation
 python run_complete_pipeline.py --symbol AAPL --quick
 
-# Complete strategy comparison (ML + Traditional + Deep Learning + RL)
+# Complete strategy comparison (ML + Traditional + Deep Learning + DeepLOB)
 python run_strategy_comparison.py --symbol AAPL --quick
 
 # Download and use real data
@@ -46,7 +46,7 @@ python run_strategy_comparison.py --symbol AAPL --period 5d --interval 1m
 ```text
 HFT_Signal/
 ├── run_complete_pipeline.py     # Simple signal generation pipeline
-├── run_strategy_comparison.py   # Complete strategy comparison (ML+Traditional+DL+RL)
+├── run_strategy_comparison.py   # Complete strategy comparison (ML+Traditional+DL+DeepLOB)
 ├── data/                        # Data acquisition and storage
 │   ├── download_real_data.py    # Script for downloading market data
 │   └── real_data/               # Real market data files
@@ -58,7 +58,7 @@ HFT_Signal/
 ├── strategy_methods/            # Complete strategy implementations
 │   ├── traditional/             # Classical quant strategies (Momentum, Mean Reversion, Pairs)
 │   ├── llm_methods/             # Deep learning strategies (LSTM, GRU, Transformer, CNN-LSTM)
-│   └── rl_methods/              # Reinforcement learning agents (PPO, SAC)
+│   └── deep_learning_methods/   # Advanced deep learning (DeepLOB + Transformer)
 ├── evaluation/                  # Performance analysis and backtesting
 │   ├── backtester.py            # Strategy backtesting engine
 │   ├── performance_metrics.py   # Comprehensive financial metrics calculation
@@ -80,12 +80,12 @@ This system provides comprehensive trading strategy research and development cap
   - Identify which indicators carry predictive power before integrating into a trading strategy.
 
 - **Strategy Performance Analysis**
-  - Compare ML, traditional, deep learning, and RL approaches using standardized financial metrics.
+  - Compare ML, traditional, deep learning, and DeepLOB + Transformer approaches using standardized financial metrics.
   - Risk-adjusted performance evaluation with Sharpe ratio, maximum drawdown, and VaR analysis.
 
-- **Reinforcement Learning (State Representation)**
-  - Extracted features (e.g., VWAP, spread, RSI, volatility) can directly serve as state vectors for RL agents.
-  - Pipeline helps validate which states are informative for decision-making.
+- **Deep Learning Feature Engineering**
+  - Extracted features (e.g., VWAP, spread, RSI, volatility) serve as input for advanced neural architectures.
+  - Pipeline validates which features are informative for DeepLOB and Transformer models.
 
 - **Machine Learning Research**
   - Systematic approach to transform raw market data into actionable input signals.
@@ -103,7 +103,7 @@ y = next_period_return = (price_t+1 - price_t) / price_t
 ```
 - **Objective**: Predict future price movements
 - **Horizon**: Next period return (configurable timeframe)
-- **Nature**: Continuous regression target for ML, discrete actions for RL
+- **Nature**: Continuous regression for ML, classification for DeepLOB + Transformer
 
 ### Feature Engineering (X)
 ```python
@@ -117,12 +117,12 @@ X = [technical_indicators, volume_features, volatility_measures, momentum_indica
 
 ### Strategy Implementation
 ```python
-strategies = [ML_models, traditional_quant, deep_learning, reinforcement_learning]
+strategies = [ML_models, traditional_quant, deep_learning, deeplob_transformer]
 ```
 - **Machine Learning**: Linear/Ridge/Random Forest with feature importance
 - **Traditional Quant**: Momentum, Mean Reversion, Pairs Trading
 - **Deep Learning**: LSTM, GRU with sequential modeling
-- **Reinforcement Learning**: PPO, SAC with environment interaction
+- **DeepLOB + Transformer**: CNN feature extraction + attention mechanism for LOB modeling
 
 ### Financial Performance Evaluation
 **Comprehensive Metrics Calculated**:
@@ -207,10 +207,10 @@ python run_strategy_comparison.py --symbol AAPL --include-all
 ### Customized Analysis
 ```bash
 # Skip slow strategies for faster results
-python run_strategy_comparison.py --symbol MSFT --skip-rl --skip-llm
+python run_strategy_comparison.py --symbol MSFT --skip-deeplob --skip-llm
 
 # Compare only traditional vs ML strategies
-python run_strategy_comparison.py --symbol GOOGL --skip-rl --skip-llm --period 2d
+python run_strategy_comparison.py --symbol GOOGL --skip-deeplob --skip-llm --period 2d
 
 # Use real downloaded data
 python data/download_real_data.py --source enhanced_yahoo --symbol AAPL --period 5d
@@ -221,7 +221,7 @@ python run_strategy_comparison.py --symbol AAPL --period 5d --interval 1m
 This pipeline serves as a **strategy research laboratory**:
 
 - **Quantitative Research**: Systematic factor testing and validation
-- **Algorithm Comparison**: ML vs Traditional vs Deep Learning vs RL performance
+- **Algorithm Comparison**: ML vs Traditional vs Deep Learning vs DeepLOB + Transformer performance
 - **Feature Discovery**: Identify which technical indicators drive returns
 - **Strategy Selection**: Choose optimal approaches for different market conditions
 

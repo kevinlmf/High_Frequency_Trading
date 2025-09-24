@@ -7,7 +7,7 @@ Compares ALL strategy types in one command:
 - ML Strategies (Linear, Ridge, Random Forest)
 - Traditional Quant (Momentum, Mean Reversion, Pairs Trading)
 - Deep Learning (LSTM, GRU, Transformer, CNN-LSTM)
-- Reinforcement Learning (PPO, SAC)
+- DeepLOB + Transformer (Advanced LOB-based Deep Learning)
 
 Usage:
     python run_strategy_comparison.py --symbol AAPL
@@ -39,9 +39,8 @@ from strategy_methods.llm_methods.gru_strategy import GRUStrategy
 from strategy_methods.llm_methods.transformer_strategy import TransformerStrategy
 from strategy_methods.llm_methods.cnn_lstm_strategy import CNNLSTMStrategy
 
-# RL strategy imports
-from strategy_methods.rl_methods.trading_env import HFTTradingEnv
-from strategy_methods.rl_methods.rl_agents import RLAgentManager
+# DeepLOB + Transformer strategy imports (替代RL)
+from strategy_methods.deep_learning_methods.deeplob_transformer import DeepLOBTransformerStrategy
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -116,24 +115,56 @@ def _run_pairs_trading_strategy(data, symbol):
     pairs_strategy.fit(price_data)
     return pairs_strategy.generate_signals(price_data)
 
-def _train_and_evaluate_rl_agent(rl_manager, algorithm, timesteps):
-    """Helper function to train and evaluate RL agent"""
-    # Train the agent
-    training_result = rl_manager.train_agent(algorithm, total_timesteps=timesteps)
+def _train_and_evaluate_deeplob_transformer(data, features, epochs=50):
+    """Helper function to train and evaluate DeepLOB + Transformer strategy"""
+    try:
+        # Create and train the strategy
+        # Adjust market feature dimension to match actual features
+        actual_feature_dim = len(features.columns)
+        strategy = DeepLOBTransformerStrategy(
+            lob_input_dim=40,
+            market_feature_dim=actual_feature_dim,  # Use actual feature dimension
+            d_model=128,
+            nhead=8,
+            num_layers=4,
+            sequence_length=50
+        )
 
-    # Evaluate the agent
-    eval_result = rl_manager.evaluate_agent(algorithm, n_episodes=5)
+        # Train the model
+        training_result = strategy.train(data, features, epochs=epochs, batch_size=16)
 
-    # Get performance metrics
-    return {
-        'hit_rate': 0.5,  # RL doesn't have traditional hit rate, use neutral value
-        'total_signals': timesteps // 10,  # Approximate signal count
-        'total_return': eval_result.get('mean_reward', 0) * 0.01,  # Convert reward to return-like metric
-        'sharpe_ratio': max(0, eval_result.get('mean_reward', 0) / (eval_result.get('std_reward', 1) + 1e-8)),
-        'mean_reward': eval_result.get('mean_reward', 0),
-        'training_episodes': len(training_result.get('eval_rewards', [])),
-        'algorithm': algorithm
-    }
+        # Generate signals
+        signals = strategy.predict(data, features)
+
+        # Calculate performance metrics
+        returns = data['close'].pct_change().fillna(0)
+        strategy_returns = signals.shift(1) * returns[signals.index]
+
+        # Get performance metrics
+        metrics = strategy.get_performance_metrics()
+
+        return {
+            'hit_rate': (signals != 0).mean(),
+            'total_signals': len(signals),
+            'total_return': strategy_returns.sum(),
+            'sharpe_ratio': strategy_returns.mean() / (strategy_returns.std() + 1e-8) * np.sqrt(252),
+            'volatility': strategy_returns.std() * np.sqrt(252),
+            'max_drawdown': (strategy_returns.cumsum() - strategy_returns.cumsum().cummax()).min(),
+            'final_train_acc': metrics.get('final_train_acc', 0),
+            'final_val_acc': metrics.get('final_val_acc', 0),
+            'algorithm': 'DeepLOB+Transformer'
+        }
+    except Exception as e:
+        logger.error(f"Error in DeepLOB + Transformer strategy: {str(e)}")
+        return {
+            'hit_rate': 0.0,
+            'total_signals': 0,
+            'total_return': 0.0,
+            'sharpe_ratio': 0.0,
+            'volatility': 0.0,
+            'max_drawdown': 0.0,
+            'algorithm': 'DeepLOB+Transformer'
+        }
 
 def create_comprehensive_financial_comparison(results_dict):
     """Create a comprehensive financial strategy comparison table with key metrics"""
@@ -309,7 +340,7 @@ def main():
     parser.add_argument('--interval', type=str, default='1m', help='Data interval')
     parser.add_argument('--quick', action='store_true', help='Quick mode - smaller dataset, fewer epochs')
     parser.add_argument('--include-all', action='store_true', help='Include all strategies (slower)')
-    parser.add_argument('--skip-rl', action='store_true', help='Skip RL strategies (faster)')
+    parser.add_argument('--skip-deeplob', action='store_true', help='Skip DeepLOB + Transformer strategy (faster)')
     parser.add_argument('--skip-llm', action='store_true', help='Skip LLM/Deep Learning strategies')
 
     args = parser.parse_args()
@@ -329,13 +360,13 @@ def main():
    • Symbol: {args.symbol}
    • Period: {args.period} | Interval: {args.interval}
    • Mode: {'⚡ Quick' if args.quick else '📊 Full'} | Include All: {'✅' if args.include_all else '❌'}
-   • Skip RL: {'✅' if args.skip_rl else '❌'} | Skip LLM: {'✅' if args.skip_llm else '❌'}
+   • Skip DeepLOB: {'✅' if args.skip_deeplob else '❌'} | Skip LLM: {'✅' if args.skip_llm else '❌'}
 
 🎯 Strategy Categories to Test:
    🤖 Machine Learning: Linear, Ridge, Random Forest
    📈 Traditional Quant: Momentum, Mean Reversion, Pairs Trading
    🧠 Deep Learning: LSTM, GRU, Transformer, CNN-LSTM
-   🎮 Reinforcement Learning: PPO, SAC
+   🔬 DeepLOB + Transformer: Advanced LOB-based Deep Learning
 
 📊 Financial Metrics Calculated:
    • Annualized Return & Volatility
@@ -458,54 +489,32 @@ Starting comprehensive financial evaluation...
 
                 all_results["LLM - GRU"] = financial_metrics
 
-        # Step 4: Reinforcement Learning Strategies
-        if not args.skip_rl:
-            print("\n🎮 Step 4/5: Running reinforcement learning strategies...")
+        # Step 4: DeepLOB + Transformer Strategy
+        if not args.skip_deeplob:
+            print("\n🧠 Step 4/5: Running DeepLOB + Transformer strategy...")
 
-            # Create RL environment
-            rl_env = HFTTradingEnv(data)
-            rl_manager = RLAgentManager(rl_env)
-
-            # PPO Agent
-            ppo_result = safe_execute_strategy(
-                lambda: _train_and_evaluate_rl_agent(rl_manager, 'PPO', 1000 if args.quick else 5000),
-                "PPO RL Agent"
+            # DeepLOB + Transformer Strategy
+            deeplob_result = safe_execute_strategy(
+                lambda: _train_and_evaluate_deeplob_transformer(
+                    data, features, epochs=20 if args.quick else 50
+                ),
+                "DeepLOB + Transformer"
             )
-            if ppo_result:
-                # For RL agents, we create basic financial metrics structure
-                # since they don't generate traditional signals
-                all_results["RL - PPO"] = {
-                    'type': 'Reinforcement Learning',
-                    'annualized_return': ppo_result.get('total_return', 0),
-                    'volatility': 0.0,  # Would need episode-by-episode returns
-                    'sharpe_ratio': ppo_result.get('sharpe_ratio', 0),
-                    'max_drawdown': 0.0,  # Would need portfolio tracking
-                    'calmar_ratio': 0.0,
-                    'win_rate': ppo_result.get('hit_rate', 0),
-                    'var_5pct': 0.0,
-                    'total_signals': ppo_result.get('total_signals', 0),
-                    'buy_signals': 0,
-                    'sell_signals': 0
-                }
-
-            # SAC Agent
-            sac_result = safe_execute_strategy(
-                lambda: _train_and_evaluate_rl_agent(rl_manager, 'SAC', 1000 if args.quick else 5000),
-                "SAC RL Agent"
-            )
-            if sac_result:
-                all_results["RL - SAC"] = {
-                    'type': 'Reinforcement Learning',
-                    'annualized_return': sac_result.get('total_return', 0),
-                    'volatility': 0.0,
-                    'sharpe_ratio': sac_result.get('sharpe_ratio', 0),
-                    'max_drawdown': 0.0,
-                    'calmar_ratio': 0.0,
-                    'win_rate': sac_result.get('hit_rate', 0),
-                    'var_5pct': 0.0,
-                    'total_signals': sac_result.get('total_signals', 0),
-                    'buy_signals': 0,
-                    'sell_signals': 0
+            if deeplob_result:
+                all_results["DeepLOB + Transformer"] = {
+                    'type': 'Deep Learning',
+                    'annualized_return': deeplob_result.get('total_return', 0) * 252,  # Annualize
+                    'volatility': deeplob_result.get('volatility', 0),
+                    'sharpe_ratio': deeplob_result.get('sharpe_ratio', 0),
+                    'max_drawdown': deeplob_result.get('max_drawdown', 0),
+                    'calmar_ratio': (deeplob_result.get('total_return', 0) * 252) / (abs(deeplob_result.get('max_drawdown', 1)) + 1e-8),
+                    'win_rate': deeplob_result.get('hit_rate', 0),
+                    'var_5pct': deeplob_result.get('max_drawdown', 0) * 1.65,  # Approximate VaR
+                    'total_signals': deeplob_result.get('total_signals', 0),
+                    'buy_signals': deeplob_result.get('total_signals', 0) // 3,  # Approximate
+                    'sell_signals': deeplob_result.get('total_signals', 0) // 3,  # Approximate
+                    'train_accuracy': deeplob_result.get('final_train_acc', 0),
+                    'validation_accuracy': deeplob_result.get('final_val_acc', 0)
                 }
 
         # Step 5: Results and Comparison

@@ -12,16 +12,8 @@ pandas-ta>=0.3.0
 numba>=0.56.0
 cython>=0.29.0
 
-# Deep Learning & RL
+# Deep Learning (PyTorch for DeepLOB + Transformer)
 torch>=1.12.0
-stable-baselines3>=1.8.0
-gymnasium>=0.29.1
-
-# JAX (for existing SAC implementation)
-jax>=0.4.0
-jaxlib>=0.4.0
-flax>=0.6.0
-optax>=0.1.4
 
 # Visualization & Reporting
 matplotlib>=3.5.0
