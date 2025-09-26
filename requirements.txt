@@ -20,6 +20,8 @@ matplotlib>=3.5.0
 seaborn>=0.11.0
 plotly>=5.0.0
 dash>=2.0.0
+reportlab>=4.0.0
+fpdf2>=2.7.0
 
 # LLM Integration
 openai>=1.0.0

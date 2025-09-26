@@ -1,6 +1,8 @@
 """
 Backtesting Engine for HFT Trading System
-system
+
+Comprehensive backtesting framework with position tracking, cost analysis,
+and performance evaluation capabilities.
 """
 
 import numpy as np
@@ -11,21 +13,22 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 import warnings
 from .performance_metrics import PerformanceMetrics
+from .pdf_report_generator import NetPnLPDFReportGenerator
 
 @dataclass
 class Trade:
     """
-
-"""
+    Trade execution record with cost tracking
+    """
     timestamp: datetime
     symbol: str
     side: str  # 'buy' or 'sell'
     quantity: float
     price: float
     order_type: str  # 'market', 'limit', etc.
-    execution_price: float  # 
-    slippage: float  # 
-    commission: float  # 
+    execution_price: float  # Actual execution price
+    slippage: float  # Slippage cost
+    commission: float  # Commission cost
 
 @dataclass
 class Position:
@@ -91,27 +94,42 @@ class PortfolioSnapshot:
 
 class DataProvider(ABC):
     """
-dataProvidesinterface
-"""
+    Abstract data provider interface
+    """
 
     @abstractmethod
     def get_price_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         """
-Getdata
-"""
+        Get historical price data
+
+        Args:
+            symbol: Symbol to get data for
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            Historical price data DataFrame
+        """
         pass
 
     @abstractmethod
     def get_market_data(self, symbols: List[str], timestamp: datetime) -> Dict[str, Dict[str, float]]:
         """
-Getdata
-"""
+        Get current market data
+
+        Args:
+            symbols: List of symbols
+            timestamp: Current timestamp
+
+        Returns:
+            Dictionary of market data by symbol
+        """
         pass
 
 class SimpleDataProvider(DataProvider):
     """
-dataProvidesImplementation
-"""
+    Simple data provider implementation using pre-loaded data
+    """
 
     def __init__(self, price_data: Dict[str, pd.DataFrame]):
         """
@@ -132,7 +150,7 @@ dataProvidesImplementation
         for symbol in symbols:
             if symbol in self.price_data:
                 data = self.price_data[symbol]
-                # Gettimestampdata
+                # Get closest timestamp data
                 closest_idx = data.index.get_indexer([timestamp], method='nearest')[0]
                 if closest_idx >= 0 and closest_idx < len(data):
                     row = data.iloc[closest_idx]
@@ -147,7 +165,7 @@ dataProvidesImplementation
         return market_data
 
 class TradingStrategy(ABC):
-    """strategyinterface"""
+    """Abstract trading strategy interface"""
 
     @abstractmethod
     def generate_signals(self, market_data: Dict[str, Dict[str, float]],
@@ -156,11 +174,11 @@ class TradingStrategy(ABC):
         Generate trading signals
 
         Args:
-            market_data: data
-            portfolio: When
+            market_data: Current market data
+            portfolio: Current portfolio state
 
         Returns:
-            {symbol: target_weight}
+            Dictionary of target weights {symbol: target_weight}
         """
         pass
 
@@ -531,23 +549,26 @@ CalculateBacktest results
         ])
         portfolio_df.set_index('timestamp', inplace=True)
 
+        # 创建交易数据DataFrame
+        trades_df = pd.DataFrame([
+            {
+                'timestamp': trade.timestamp,
+                'symbol': trade.symbol,
+                'side': trade.side,
+                'quantity': trade.quantity,
+                'price': trade.price,
+                'execution_price': trade.execution_price,
+                'slippage': trade.slippage,
+                'commission': trade.commission
+            }
+            for trade in self.trades
+        ])
+
         return {
             'performance_metrics': metrics,
             'trade_statistics': trade_stats,
             'portfolio_history': portfolio_df,
-            'trades': pd.DataFrame([
-                {
-                    'timestamp': trade.timestamp,
-                    'symbol': trade.symbol,
-                    'side': trade.side,
-                    'quantity': trade.quantity,
-                    'price': trade.price,
-                    'execution_price': trade.execution_price,
-                    'slippage': trade.slippage,
-                    'commission': trade.commission
-                }
-                for trade in self.trades
-            ]),
+            'trades': trades_df,
             'final_positions': self.positions,
             'gross_returns': gross_returns,
             'net_returns': net_returns,
@@ -563,6 +584,46 @@ CalculateBacktest results
                 'cost_ratio': (self.total_commission + self.total_slippage) / abs(self.portfolio_history[-1].total_pnl) if self.portfolio_history and self.portfolio_history[-1].total_pnl != 0 else 0
             }
         }
+
+    def generate_net_pnl_pdf_report(self, strategy_name: str = "HFT Strategy",
+                                   save_path: Optional[str] = None) -> str:
+        """
+        生成净PnL PDF报告
+
+        Args:
+            strategy_name: 策略名称
+            save_path: PDF保存路径，如果为None则自动生成
+
+        Returns:
+            生成的PDF文件路径
+        """
+        if not self.portfolio_history:
+            raise ValueError("No portfolio history available for PDF report generation")
+
+        # 获取回测结果
+        results = self._calculate_results([])  # symbols not needed for metrics calculation
+
+        # 如果没有指定保存路径，则生成默认路径
+        if save_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_path = f"net_pnl_report_{strategy_name.replace(' ', '_')}_{timestamp}.pdf"
+
+        # 创建PDF报告生成器
+        pdf_generator = NetPnLPDFReportGenerator(
+            strategy_name=strategy_name,
+            report_title=f"Net PnL Performance Report - {strategy_name}"
+        )
+
+        # 生成PDF报告
+        report_path = pdf_generator.generate_comprehensive_pdf_report(
+            portfolio_history=results['portfolio_history'],
+            performance_metrics=results['performance_metrics'],
+            trades_data=results['trades'] if not results['trades'].empty else None,
+            benchmark_data=results['benchmark_returns'],
+            save_path=save_path
+        )
+
+        return report_path
 
     def _calculate_trade_statistics(self) -> Dict[str, Any]:
         """

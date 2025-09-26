@@ -1,6 +1,8 @@
 """
-Signal processor
-IntegrationData acquisition、Feature engineeringSignal Generationinterface
+Signal Processor Module
+
+Integrates data acquisition, feature engineering, and signal generation interfaces
+for the HFT trading system.
 """
 
 import pandas as pd
@@ -20,13 +22,16 @@ logger = logging.getLogger(__name__)
 
 class SignalProcessor:
     """
-Signal processor
-    Original HFT_Signal projectCore functionality，ImplementationSignal Generationpipeline
-"""
+    Signal Processor Class
+
+    Core functionality from the original HFT_Signal project that implements the
+    complete signal generation pipeline including data loading, feature engineering,
+    model training, and signal generation.
+    """
 
     def __init__(self, data_source: str = 'yahoo'):
         """
-        InitializeSignal processor
+        Initialize Signal Processor
 
         Args:
             data_source: Data source type ('yahoo', 'real_data', 'file', etc.)
@@ -43,7 +48,14 @@ Signal processor
         logger.info(f"SignalProcessor initialized with {data_source} data source")
 
     def _init_data_source(self, source_type: str):
-        """InitializeData source"""
+        """Initialize data source based on type.
+
+        Args:
+            source_type: Type of data source to initialize
+
+        Returns:
+            Initialized data source object
+        """
         if source_type == 'yahoo':
             return YahooFinanceSource()
         elif source_type == 'real_data':
@@ -58,16 +70,16 @@ Signal processor
         **kwargs
     ) -> pd.DataFrame:
         """
-Loaddata
+        Load market data
 
         Args:
-            symbol: Stock symbol (ForIndata)
-            filepath: File path (Fordata)
-            **kwargs: Additional parameters（real_dataSupportsdata_type, records, levelsparameters）
+            symbol: Stock symbol (for downloading data)
+            filepath: File path (for loading from file)
+            **kwargs: Additional parameters (real_data supports data_type, records, levels parameters)
 
         Returns:
-            Raw market dataDataFrame
-"""
+            Raw market data DataFrame
+        """
         start_time = time.time()
 
         if filepath:
@@ -116,11 +128,11 @@ Loaddata
 
     def generate_features(self) -> pd.DataFrame:
         """
-GenerateTechnical indicatorsfeatures
+        Generate technical indicator features
 
         Returns:
-            Technical featuresDataFrame
-"""
+            Technical features DataFrame
+        """
         if self.raw_data is None:
             raise ValueError("No data loaded. Call load_data() first.")
 
@@ -136,14 +148,14 @@ GenerateTechnical indicatorsfeatures
 
     def train_signal_models(self, test_size: float = 0.3) -> Dict[str, Any]:
         """
-TrainSignal Generationmodel
+        Train signal generation models
 
         Args:
-            test_size: Test set ratio
+            test_size: Test set ratio for train/test split
 
         Returns:
-            Training results
-"""
+            Training results dictionary
+        """
         if self.features is None:
             raise ValueError("No features generated. Call generate_features() first.")
 
@@ -173,15 +185,15 @@ TrainSignal Generationmodel
         return_strength: bool = False
     ) -> pd.Series:
         """
-Generate trading signals
+        Generate trading signals
 
         Args:
-            model_name: Model name
-            return_strength: IsNotReturnsSignal strengthDiscrete signals
+            model_name: Model name to use for prediction
+            return_strength: Whether to return signal strength instead of discrete signals
 
         Returns:
-            signals
-"""
+            Trading signals Series
+        """
         if self.signal_generator is None:
             raise ValueError("No signal generator trained. Call train_signal_models() first.")
 
@@ -202,37 +214,37 @@ Generate trading signals
         **kwargs
     ) -> Dict[str, Any]:
         """
-RunSignal Generationpipeline
+        Run complete signal generation pipeline
 
         Args:
             symbol: Stock symbol
-            filepath: dataFile path
-            model_name: UsingModel name
-            save_results: IsNotSaveresults
+            filepath: Data file path
+            model_name: Model name to use
+            save_results: Whether to save results to file
             **kwargs: Additional parameters
 
         Returns:
-            Runresults
-"""
+            Pipeline execution results
+        """
         pipeline_start = time.time()
 
         logger.info("Starting full HFT signal pipeline...")
 
         try:
-            # 1. Loaddata
+            # 1. Load data
             self.load_data(symbol=symbol, filepath=filepath, **kwargs)
 
-            # 2. Generatefeatures
+            # 2. Generate features
             self.generate_features()
 
             # 3. Train models
             training_results = self.train_signal_models()
 
-            # 4. Generatesignals
+            # 4. Generate signals
             signals = self.generate_signals(model_name=model_name)
             signal_strength = self.generate_signals(model_name=model_name, return_strength=True)
 
-            # 5. results
+            # 5. Compile results
             results = {
                 'raw_data': self.raw_data,
                 'features': self.features,
@@ -244,7 +256,7 @@ RunSignal Generationpipeline
                 'performance_report': self.signal_generator.get_performance_report()
             }
 
-            # 6. Saveresults
+            # 6. Save results
             if save_results:
                 self._save_results(results, symbol or 'data')
 
@@ -261,26 +273,30 @@ RunSignal Generationpipeline
 
     def _save_results(self, results: Dict[str, Any], symbol: str) -> None:
         """
-Saveresultsfile
-"""
+        Save results to files
+
+        Args:
+            results: Results dictionary to save
+            symbol: Symbol name for file naming
+        """
         try:
-            # CreateOutputdirectory
+            # Create output directory
             output_dir = Path("exports")
             output_dir.mkdir(exist_ok=True)
 
-            # Savesignals
+            # Save signals
             signals_file = output_dir / f"{symbol}_signals.csv"
             if 'signals' in results and results['signals'] is not None:
                 results['signals'].to_csv(signals_file)
                 logger.info(f"Signals saved to {signals_file}")
 
-            # Saveperformance
+            # Save performance report
             report_file = output_dir / f"{symbol}_performance_report.csv"
             if 'performance_report' in results and not results['performance_report'].empty:
                 results['performance_report'].to_csv(report_file, index=False)
                 logger.info(f"Performance report saved to {report_file}")
 
-            # Savefeatures
+            # Save feature importance
             importance_file = output_dir / f"{symbol}_feature_importance.csv"
             if 'feature_importance' in results and results['feature_importance']:
                 importance_df = pd.DataFrame(
@@ -295,8 +311,11 @@ Saveresultsfile
 
     def get_summary(self) -> Dict[str, Any]:
         """
-GetProcess
-"""
+        Get processing summary
+
+        Returns:
+            Summary dictionary with processing statistics
+        """
         return {
             'data_shape': self.raw_data.shape if self.raw_data is not None else None,
             'features_count': len(self.features.columns) if self.features is not None else 0,
@@ -307,8 +326,11 @@ GetProcess
 
     def _get_best_model(self) -> Optional[str]:
         """
-Getmodel
-"""
+        Get best performing model
+
+        Returns:
+            Name of the best model based on information coefficient
+        """
         if not self.performance_metrics:
             return None
 
@@ -322,8 +344,8 @@ Getmodel
 # Create__init__.pyfile
 def create_init_files():
     """
-Create__init__.pyfile
-"""
+    Create __init__.py files for proper package structure
+    """
     init_files = [
         "signal_engine/data_sources/__init__.py",
         "signal_engine/feature_engineering/__init__.py",
@@ -335,13 +357,13 @@ Create__init__.pyfile
 
 
 if __name__ == "__main__":
-    # Create__init__file
+    # Create __init__ files
     create_init_files()
 
-    # TestComplete Pipeline
+    # Test complete pipeline
     processor = SignalProcessor()
 
-    # Run
+    # Run pipeline
     results = processor.run_full_pipeline(
         symbol="AAPL",
         period="5d",

@@ -39,8 +39,11 @@ from strategy_methods.llm_methods.gru_strategy import GRUStrategy
 from strategy_methods.llm_methods.transformer_strategy import TransformerStrategy
 from strategy_methods.llm_methods.cnn_lstm_strategy import CNNLSTMStrategy
 
-# DeepLOB + Transformer strategy imports (替代RL)
+# DeepLOB + Transformer strategy imports (replacing RL)
 from strategy_methods.deep_learning_methods.deeplob_transformer import DeepLOBTransformerStrategy
+
+# PDF Report import
+from evaluation.strategy_comparison_pdf import StrategyComparisonPDFGenerator
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -52,10 +55,10 @@ def safe_execute_strategy(strategy_func, strategy_name, *args, **kwargs):
         logger.info(f"Running {strategy_name}...")
         return strategy_func(*args, **kwargs)
     except Exception as e:
-        logger.warning(f"⚠️  {strategy_name} failed: {str(e)}")
+        logger.warning(f"WARNING: {strategy_name} failed: {str(e)}")
         return None
 
-def calculate_strategy_financial_metrics(signals, data, strategy_type):
+def calculate_strategy_financial_metrics(signals, data, strategy_type, initial_capital=100000):
     """Calculate comprehensive financial metrics for a strategy"""
     try:
         # Convert signals to pandas Series if needed
@@ -71,12 +74,19 @@ def calculate_strategy_financial_metrics(signals, data, strategy_type):
         # Shift signals by 1 to avoid look-ahead bias
         strategy_returns = (signals.shift(1) * price_returns).fillna(0)
 
+        # Calculate cumulative returns and net PnL
+        cumulative_returns = (1 + strategy_returns).cumprod()
+        net_pnl = (cumulative_returns.iloc[-1] - 1) * initial_capital if len(cumulative_returns) > 0 else 0
+
         # Calculate performance metrics using PerformanceMetrics class
         perf_metrics = PerformanceMetrics(strategy_returns, risk_free_rate=0.02)
         all_metrics = perf_metrics.calculate_all_metrics()
 
-        # Add strategy-specific information
+        # Add strategy-specific information including net PnL
         all_metrics['type'] = strategy_type
+        all_metrics['net_pnl'] = net_pnl
+        all_metrics['initial_capital'] = initial_capital
+        all_metrics['total_return_pct'] = (cumulative_returns.iloc[-1] - 1) * 100 if len(cumulative_returns) > 0 else 0
         all_metrics['total_signals'] = len(signals[signals != 0])
         all_metrics['buy_signals'] = (signals == 1).sum()
         all_metrics['sell_signals'] = (signals == -1).sum()
@@ -88,6 +98,9 @@ def calculate_strategy_financial_metrics(signals, data, strategy_type):
         # Return basic metrics structure with zeros
         return {
             'type': strategy_type,
+            'net_pnl': 0.0,
+            'initial_capital': initial_capital,
+            'total_return_pct': 0.0,
             'annualized_return': 0.0,
             'volatility': 0.0,
             'sharpe_ratio': 0.0,
@@ -169,7 +182,7 @@ def _train_and_evaluate_deeplob_transformer(data, features, epochs=50):
 def create_comprehensive_financial_comparison(results_dict):
     """Create a comprehensive financial strategy comparison table with key metrics"""
     print("\n" + "=" * 150)
-    print("🏆 COMPREHENSIVE FINANCIAL STRATEGY PERFORMANCE COMPARISON")
+    print("COMPREHENSIVE FINANCIAL STRATEGY PERFORMANCE COMPARISON")
     print("=" * 150)
     print(f"{'Strategy':<25} {'Type':<12} {'Ann.Ret':<9} {'Vol':<8} {'Sharpe':<8} {'MaxDD':<9} {'Calmar':<8} {'WinRate':<9} {'VaR':<8} {'Assessment'}")
     print("-" * 150)
@@ -197,7 +210,7 @@ def create_comprehensive_financial_comparison(results_dict):
     # Display strategies with enhanced financial assessment
     for strategy_name, results in results_dict.items():
         if results is None:
-            print(f"{strategy_name:<25} {'N/A':<12} {'Failed':<9} {'--':<8} {'--':<8} {'--':<9} {'--':<8} {'--':<9} {'--':<8} {'❌ Error'}")
+            print(f"{strategy_name:<25} {'N/A':<12} {'Failed':<9} {'--':<8} {'--':<8} {'--':<9} {'--':<8} {'--':<9} {'--':<8} {'ERROR'}")
             continue
 
         strategy_type = results.get('type', 'Unknown')
@@ -258,15 +271,15 @@ def create_comprehensive_financial_comparison(results_dict):
 
         # Final assessment
         if score >= 80:
-            assessment = "🟢 Excellent"
+            assessment = "Excellent"
         elif score >= 60:
-            assessment = "🟡 Good"
+            assessment = "Good"
         elif score >= 40:
-            assessment = "🟠 Moderate"
+            assessment = "Moderate"
         elif score >= 20:
-            assessment = "🔴 Weak"
+            assessment = "Weak"
         else:
-            assessment = "❌ Poor"
+            assessment = "Poor"
 
         # Format output with proper alignment
         type_str = strategy_type[:11]
@@ -283,7 +296,7 @@ def create_comprehensive_financial_comparison(results_dict):
     # Add summary of best performers
     if any(results_dict.values()):
         print("\n" + "=" * 150)
-        print("📈 TOP FINANCIAL PERFORMERS SUMMARY")
+        print("TOP FINANCIAL PERFORMERS SUMMARY")
         print("=" * 150)
 
         valid_strategies = {k: v for k, v in results_dict.items() if v is not None}
@@ -308,9 +321,9 @@ def create_comprehensive_financial_comparison(results_dict):
                                   key=lambda k: abs(valid_strategies[k].get('max_drawdown', 1)))
             best_dd_val = valid_strategies[best_dd_strategy].get('max_drawdown', 0)
 
-            print(f"🏆 Best Return: {best_return_strategy} ({best_return_val*100:.2f}% annually)")
-            print(f"⚡ Best Sharpe: {best_sharpe_strategy} ({best_sharpe_val:.2f} ratio)")
-            print(f"🛡️  Best Risk Control: {best_dd_strategy} ({best_dd_val*100:.2f}% max drawdown)")
+            print(f"Best Return: {best_return_strategy} ({best_return_val*100:.2f}% annually)")
+            print(f"Best Sharpe: {best_sharpe_strategy} ({best_sharpe_val:.2f} ratio)")
+            print(f"Best Risk Control: {best_dd_strategy} ({best_dd_val*100:.2f}% max drawdown)")
 
             # Risk-Return efficiency analysis
             efficient_strategies = []
@@ -326,7 +339,7 @@ def create_comprehensive_financial_comparison(results_dict):
 
             if efficient_strategies:
                 efficient_strategies.sort(key=lambda x: x[1], reverse=True)
-                print(f"\n🎯 Most Risk-Efficient: {efficient_strategies[0][0]} (Score: {efficient_strategies[0][1]:.3f})")
+                print(f"\nMost Risk-Efficient: {efficient_strategies[0][0]} (Score: {efficient_strategies[0][1]:.3f})")
                 print(f"   Return: {efficient_strategies[0][2]*100:.2f}% | Sharpe: {efficient_strategies[0][3]:.2f} | MaxDD: {efficient_strategies[0][4]*100:.2f}%")
 
 def create_comparison_table(results_dict):
@@ -342,6 +355,7 @@ def main():
     parser.add_argument('--include-all', action='store_true', help='Include all strategies (slower)')
     parser.add_argument('--skip-deeplob', action='store_true', help='Skip DeepLOB + Transformer strategy (faster)')
     parser.add_argument('--skip-llm', action='store_true', help='Skip LLM/Deep Learning strategies')
+    parser.add_argument('--generate-pdf', action='store_true', help='Generate strategy comparison PDF report')
 
     args = parser.parse_args()
 
@@ -351,28 +365,29 @@ def main():
         args.interval = '5m'
 
     print(f"""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                🚀 COMPREHENSIVE FINANCIAL STRATEGY ANALYSIS 🚀               ║
-║           Complete Performance Evaluation with Financial Metrics             ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+==============================================================================
+                COMPREHENSIVE FINANCIAL STRATEGY ANALYSIS
+           Complete Performance Evaluation with Financial Metrics
+==============================================================================
 
-📋 Configuration:
-   • Symbol: {args.symbol}
-   • Period: {args.period} | Interval: {args.interval}
-   • Mode: {'⚡ Quick' if args.quick else '📊 Full'} | Include All: {'✅' if args.include_all else '❌'}
-   • Skip DeepLOB: {'✅' if args.skip_deeplob else '❌'} | Skip LLM: {'✅' if args.skip_llm else '❌'}
+Configuration:
+   - Symbol: {args.symbol}
+   - Period: {args.period} | Interval: {args.interval}
+   - Mode: {'Quick' if args.quick else 'Full'} | Include All: {'Yes' if args.include_all else 'No'}
+   - Skip DeepLOB: {'Yes' if args.skip_deeplob else 'No'} | Skip LLM: {'Yes' if args.skip_llm else 'No'}
+   - PDF Report: {'Enabled' if args.generate_pdf else 'Disabled'}
 
-🎯 Strategy Categories to Test:
-   🤖 Machine Learning: Linear, Ridge, Random Forest
-   📈 Traditional Quant: Momentum, Mean Reversion, Pairs Trading
-   🧠 Deep Learning: LSTM, GRU, Transformer, CNN-LSTM
-   🔬 DeepLOB + Transformer: Advanced LOB-based Deep Learning
+Strategy Categories to Test:
+   - Machine Learning: Linear, Ridge, Random Forest
+   - Traditional Quant: Momentum, Mean Reversion, Pairs Trading
+   - Deep Learning: LSTM, GRU, Transformer, CNN-LSTM
+   - DeepLOB + Transformer: Advanced LOB-based Deep Learning
 
-📊 Financial Metrics Calculated:
-   • Annualized Return & Volatility
-   • Sharpe Ratio & Calmar Ratio
-   • Maximum Drawdown & VaR (5%)
-   • Win Rate & Risk-Adjusted Performance
+Financial Metrics Calculated:
+   - Annualized Return & Volatility
+   - Sharpe Ratio & Calmar Ratio
+   - Maximum Drawdown & VaR (5%)
+   - Win Rate & Risk-Adjusted Performance
 
 Starting comprehensive financial evaluation...
 """)
@@ -382,7 +397,7 @@ Starting comprehensive financial evaluation...
 
     try:
         # Step 1: Data and ML Signal Generation
-        print("📥 Step 1/5: Loading data and generating ML signals...")
+        print("Step 1/5: Loading data and generating ML signals...")
         processor = SignalProcessor(data_source='yahoo')
 
         data = processor.load_data(
@@ -390,13 +405,13 @@ Starting comprehensive financial evaluation...
             period=args.period,
             interval=args.interval
         )
-        print(f"   ✅ Loaded {len(data)} records")
+        print(f"   Loaded {len(data)} records")
 
         features = processor.generate_features()
-        print(f"   ✅ Generated {features.shape[1]} features")
+        print(f"   Generated {features.shape[1]} features")
 
         ml_results = processor.train_signal_models(test_size=0.3)
-        print("   ✅ Trained ML models")
+        print("   Trained ML models")
 
         # Store ML results with comprehensive financial metrics
         for model_name, metrics in processor.performance_metrics.items():
@@ -413,7 +428,7 @@ Starting comprehensive financial evaluation...
             all_results[f"ML - {model_name.title()}"] = financial_metrics
 
         # Step 2: Traditional Strategies
-        print("\n📈 Step 2/5: Running traditional quantitative strategies...")
+        print("\nStep 2/5: Running traditional quantitative strategies...")
 
         # Momentum Strategy
         momentum_result = safe_execute_strategy(
@@ -450,7 +465,7 @@ Starting comprehensive financial evaluation...
 
         # Step 3: Deep Learning Strategies
         if not args.skip_llm:
-            print("\n🧠 Step 3/5: Running LLM/Deep Learning strategies...")
+            print("\nStep 3/5: Running LLM/Deep Learning strategies...")
             epochs = 5 if args.quick else 20
 
             # LSTM Strategy
@@ -491,7 +506,7 @@ Starting comprehensive financial evaluation...
 
         # Step 4: DeepLOB + Transformer Strategy
         if not args.skip_deeplob:
-            print("\n🧠 Step 4/5: Running DeepLOB + Transformer strategy...")
+            print("\nStep 4/5: Running DeepLOB + Transformer strategy...")
 
             # DeepLOB + Transformer Strategy
             deeplob_result = safe_execute_strategy(
@@ -501,24 +516,33 @@ Starting comprehensive financial evaluation...
                 "DeepLOB + Transformer"
             )
             if deeplob_result:
+                annual_return = deeplob_result.get('total_return', 0) * 252
+                initial_capital = 100000
+                net_pnl = annual_return * initial_capital
                 all_results["DeepLOB + Transformer"] = {
                     'type': 'Deep Learning',
-                    'annualized_return': deeplob_result.get('total_return', 0) * 252,  # Annualize
+                    'net_pnl': net_pnl,
+                    'initial_capital': initial_capital,
+                    'total_return_pct': annual_return * 100,
+                    'annualized_return': annual_return,
                     'volatility': deeplob_result.get('volatility', 0),
                     'sharpe_ratio': deeplob_result.get('sharpe_ratio', 0),
                     'max_drawdown': deeplob_result.get('max_drawdown', 0),
-                    'calmar_ratio': (deeplob_result.get('total_return', 0) * 252) / (abs(deeplob_result.get('max_drawdown', 1)) + 1e-8),
+                    'calmar_ratio': annual_return / (abs(deeplob_result.get('max_drawdown', 1)) + 1e-8),
                     'win_rate': deeplob_result.get('hit_rate', 0),
                     'var_5pct': deeplob_result.get('max_drawdown', 0) * 1.65,  # Approximate VaR
                     'total_signals': deeplob_result.get('total_signals', 0),
                     'buy_signals': deeplob_result.get('total_signals', 0) // 3,  # Approximate
                     'sell_signals': deeplob_result.get('total_signals', 0) // 3,  # Approximate
                     'train_accuracy': deeplob_result.get('final_train_acc', 0),
-                    'validation_accuracy': deeplob_result.get('final_val_acc', 0)
+                    'validation_accuracy': deeplob_result.get('final_val_acc', 0),
+                    'hit_rate': deeplob_result.get('hit_rate', 0),
+                    'information_coefficient': 0,
+                    'r2_score': 0
                 }
 
         # Step 5: Results and Comparison
-        print("\n💾 Step 5/5: Generating comparison results...")
+        print("\nStep 5/5: Generating comparison results...")
 
         # Create comparison table
         create_comparison_table(all_results)
@@ -538,6 +562,9 @@ Starting comprehensive financial evaluation...
             {
                 'strategy': name,
                 'type': results.get('type', 'Unknown'),
+                'net_pnl': results.get('net_pnl', 0),
+                'initial_capital': results.get('initial_capital', 100000),
+                'total_return_pct': results.get('total_return_pct', 0),
                 'annualized_return': results.get('annualized_return', 0),
                 'volatility': results.get('volatility', 0),
                 'sharpe_ratio': results.get('sharpe_ratio', 0),
@@ -561,31 +588,93 @@ Starting comprehensive financial evaluation...
         comparison_file = exports_dir / f'{args.symbol}_strategy_comparison_{args.period}_{args.interval}.csv'
         results_df.to_csv(comparison_file, index=False)
 
+        # Always generate net PnL PDF report
+        from evaluation.pdf_report_generator import PDFReportGenerator
+        try:
+            pdf_generator = PDFReportGenerator()
+            net_pnl_pdf_file = exports_dir / f'{args.symbol}_net_pnl_report_{args.period}_{args.interval}.pdf'
+            pdf_generator.generate_net_pnl_report(all_results, str(net_pnl_pdf_file), args.symbol)
+            print(f"   Net PnL PDF report saved: {net_pnl_pdf_file.name}")
+        except Exception as e:
+            print(f"   Net PnL PDF generation failed: {str(e)}")
+
+        # Generate PDF report if requested
+        pdf_file = None
+        if args.generate_pdf:
+            print("\nGenerating Strategy Comparison PDF Report...")
+            try:
+                # Convert results to format expected by PDF generator
+                strategies_for_pdf = {}
+                for name, results in all_results.items():
+                    if results is not None:
+                        strategies_for_pdf[name] = {
+                            'performance_metrics': {
+                                'net_total_pnl': results.get('annualized_return', 0) * 100000,  # Simulate with 100k capital
+                                'cumulative_return': results.get('annualized_return', 0),
+                                'sharpe_ratio': results.get('sharpe_ratio', 0),
+                                'max_drawdown': results.get('max_drawdown', 0),
+                                'volatility': results.get('volatility', 0),
+                                'win_rate': results.get('win_rate', 0),
+                                'cost_drag_pct': 2.0,  # Default cost drag
+                                'net_profit_margin': results.get('annualized_return', 0) * 100,
+                                'return_to_cost_ratio': abs(results.get('annualized_return', 0)) / 0.02 if results.get('annualized_return', 0) != 0 else 0
+                            },
+                            'returns_series': None  # Will be handled by PDF generator
+                        }
+
+                pdf_generator = StrategyComparisonPDFGenerator(
+                    report_title=f"HFT Strategy Comparison - {args.symbol}"
+                )
+
+                pdf_file = exports_dir / f'{args.symbol}_strategy_comparison_report_{args.period}_{args.interval}.pdf'
+                pdf_generator.generate_strategy_comparison_pdf(
+                    strategies_for_pdf,
+                    str(pdf_file)
+                )
+                print(f"   PDF report saved: {pdf_file.name}")
+
+            except Exception as e:
+                print(f"   PDF generation failed: {str(e)}")
+                print("   Generating sample PDF instead...")
+                try:
+                    from evaluation.strategy_comparison_pdf import generate_sample_strategy_comparison_pdf
+                    sample_path = generate_sample_strategy_comparison_pdf()
+
+                    # Move to exports directory
+                    import shutil
+                    pdf_file = exports_dir / f'{args.symbol}_sample_strategy_comparison.pdf'
+                    shutil.move(sample_path, pdf_file)
+                    print(f"   Sample PDF report saved: {pdf_file.name}")
+                except Exception as e2:
+                    print(f"   Sample PDF generation also failed: {str(e2)}")
+                    pdf_file = None
+
         total_time = time.time() - start_time
 
         print(f"""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                    🏆 FINANCIAL COMPARISON COMPLETE!                         ║
-║                                                                              ║
-║  📊 Strategies Evaluated: {len(all_results)}                                         ║
-║  ⚡ Total Time: {total_time:.1f} seconds                                            ║
-║  💾 Results: {comparison_file.name}        ║
-║                                                                              ║
-║  🎯 Best Annualized Return: {best_return or 'N/A'}                          ║
-║  📈 Best Sharpe Ratio: {best_sharpe or 'N/A'}                               ║
-║  🛡️ Best Drawdown Control: {best_drawdown or 'N/A'}                          ║
-║  ⚖️ Best Risk-Adjusted: {best_calmar or 'N/A'}                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+==============================================================================
+                    FINANCIAL COMPARISON COMPLETE!
 
-🎉 Comprehensive financial analysis complete!
-📋 Key metrics included: Returns, Volatility, Sharpe, Drawdown, Calmar, Win Rate, VaR
-💼 Check exports/ for detailed CSV with all financial indicators.
+  Strategies Evaluated: {len(all_results)}
+  Total Time: {total_time:.1f} seconds
+  Results: {comparison_file.name}""" + (f"""
+  PDF Report: {pdf_file.name if pdf_file else 'Not generated'}""" if args.generate_pdf else "") + f"""
+
+  Best Annualized Return: {best_return or 'N/A'}
+  Best Sharpe Ratio: {best_sharpe or 'N/A'}
+  Best Drawdown Control: {best_drawdown or 'N/A'}
+  Best Risk-Adjusted: {best_calmar or 'N/A'}
+==============================================================================
+
+Comprehensive financial analysis complete!
+Key metrics included: Returns, Volatility, Sharpe, Drawdown, Calmar, Win Rate, VaR
+Check exports/ for detailed CSV with all financial indicators.
 """)
 
         return all_results
 
     except Exception as e:
-        logger.error(f"❌ Strategy comparison failed: {str(e)}")
+        logger.error(f"Strategy comparison failed: {str(e)}")
         raise
 
 if __name__ == "__main__":

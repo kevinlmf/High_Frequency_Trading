@@ -1,6 +1,8 @@
 """
-MLSignal Generation[Translated]
-Based on[Translated]HFT_Signal[Translated]Machine LearningSignal Generation[Translated]
+Machine Learning Signal Generation Module
+
+Implements machine learning-based signal generation using various ML models
+including linear regression, ridge regression, and random forest.
 """
 
 import pandas as pd
@@ -20,8 +22,11 @@ logger = logging.getLogger(__name__)
 
 class MLSignalGenerator:
     """
-Machine LearningSignal Generation[Translated]
-"""
+    Machine Learning Signal Generator
+
+    A comprehensive signal generator that uses multiple machine learning models
+    to predict price movements and generate trading signals.
+    """
 
     def __init__(self):
         self.models = {}
@@ -36,36 +41,36 @@ Machine LearningSignal Generation[Translated]
         target_horizon: int = 1
     ) -> Tuple[pd.DataFrame, pd.Series]:
         """
-[Translated]features[Translated]variable
+        Prepare features and target variable for training
 
         Args:
-            features_df: Technical indicatorsfeaturesDataFrame
-            price_data: [Translated]dataDataFrame
-            target_horizon: [Translated]Time[Translated]([Translated])
+            features_df: Technical indicators features DataFrame
+            price_data: Price data DataFrame
+            target_horizon: Prediction time horizon (periods ahead)
 
         Returns:
-            features[Translated]
-"""
-        # Create[Translated]variable - Not[Translated]
+            Tuple of cleaned features DataFrame and target Series
+        """
+        # Create target variable - future returns
         if 'close' in price_data.columns:
             close_prices = price_data['close']
         else:
             close_prices = price_data['close_price']
 
-        # CalculateNot[Translated]
+        # Calculate future returns
         target = close_prices.shift(-target_horizon) / close_prices - 1
 
-        # [Translated]
+        # Align indices
         common_index = features_df.index.intersection(target.index)
         features_aligned = features_df.loc[common_index]
         target_aligned = target.loc[common_index]
 
-        # [Translated]ContainsNaN[Translated]
+        # Remove rows containing NaN values
         mask = ~(features_aligned.isnull().any(axis=1) | target_aligned.isnull())
         features_clean = features_aligned[mask]
         target_clean = target_aligned[mask]
 
-        # [Translated]Check[Translated]NaN
+        # Final check for any remaining NaN values
         features_clean = features_clean.fillna(0)
         target_clean = target_clean.fillna(0)
 
@@ -81,32 +86,32 @@ Machine LearningSignal Generation[Translated]
         random_state: int = 42
     ) -> Dict[str, Any]:
         """
-Train[Translated]MLmodel
+        Train multiple ML models
 
         Args:
-            features: features[Translated]
-            target: [Translated]
-            test_size: Test set ratio
-            random_state: [Translated]
+            features: Feature matrix DataFrame
+            target: Target variable Series
+            test_size: Test set ratio for train/validation split
+            random_state: Random state for reproducibility
 
         Returns:
-            Training results[Translated]
-"""
+            Training results dictionary
+        """
         logger.info("Training ML models...")
 
-        # data[Translated]
+        # Split data into train/test sets
         X_train, X_test, y_train, y_test = train_test_split(
             features, target, test_size=test_size, random_state=random_state
         )
 
-        # features[Translated]
+        # Scale features for linear models
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
         self.scalers['standard'] = scaler
 
-        # [Translated]model
+        # Configure models
         models_config = {
             'linear': LinearRegression(),
             'ridge': Ridge(alpha=1.0),
@@ -124,7 +129,7 @@ Train[Translated]MLmodel
             logger.info(f"Training {model_name} model...")
 
             try:
-                # [Translated]modelUsing[Translated]data，[Translated]Using[Translated]data
+                # Train model with scaled data for linear models, original data for tree-based models
                 if model_name in ['linear', 'ridge']:
                     model.fit(X_train_scaled, y_train)
                     y_pred = model.predict(X_test_scaled)
@@ -132,12 +137,12 @@ Train[Translated]MLmodel
                     model.fit(X_train, y_train)
                     y_pred = model.predict(X_test)
 
-                # CalculatePerformance metrics
+                # Calculate performance metrics
                 r2 = r2_score(y_test, y_pred)
                 ic = np.corrcoef(y_test, y_pred)[0, 1] if len(np.unique(y_pred)) > 1 else 0
                 hit_rate = np.mean((y_pred * y_test) > 0) * 100
 
-                # Savemodel[Translated]results
+                # Save model and results
                 self.models[model_name] = model
                 self.performance_metrics[model_name] = {
                     'r2_score': r2,
@@ -147,7 +152,7 @@ Train[Translated]MLmodel
                     'actual': y_test.values
                 }
 
-                # features[Translated] ([Translated]Supports[Translated]model)
+                # Extract feature importance (for models that support it)
                 if hasattr(model, 'feature_importances_'):
                     self.feature_importance[model_name] = dict(
                         zip(features.columns, model.feature_importances_)
@@ -181,33 +186,33 @@ Train[Translated]MLmodel
 Generate trading signals
 
         Args:
-            features: features[Translated]
-            model_name: Using[Translated]Model name
+            features: Feature matrix DataFrame
+            model_name: Model name to use for prediction
 
         Returns:
-            [Translated]signals[Translated]
-"""
+            Trading signals Series (-1, 0, 1)
+        """
         if model_name not in self.models:
             raise ValueError(f"Model {model_name} not found. Available models: {list(self.models.keys())}")
 
         model = self.models[model_name]
 
-        # [Translated]features[Translated]HasNaN
+        # featuresHasNaN
         features_clean = features.fillna(0)
 
-        # [Translated]Processfeatures
+        # Processfeatures
         if model_name in ['linear', 'ridge'] and 'standard' in self.scalers:
             features_processed = self.scalers['standard'].transform(features_clean)
         else:
             features_processed = features_clean.values
 
-        # Generate[Translated]
+        # Generate predictions
         predictions = model.predict(features_processed)
 
-        # [Translated]signals (-1, 0, 1)
+        # signals (-1, 0, 1)
         signals = pd.Series(index=features.index, data=0)
-        signals[predictions > 0.001] = 1   # [Translated]signals
-        signals[predictions < -0.001] = -1  # [Translated]signals
+        signals[predictions > 0.001] = 1   # signals
+        signals[predictions < -0.001] = -1  # signals
 
         return signals
 
@@ -217,38 +222,34 @@ Generate trading signals
         model_name: str = 'ridge'
     ) -> pd.Series:
         """
-GetSignal strength ([Translated])
+GetSignal strength ()
 
         Args:
-            features: features[Translated]
-            model_name: Using[Translated]Model name
+            features: features            model_name: UsingModel name
 
         Returns:
-            Signal strength[Translated]
-"""
+            Signal strength"""
         if model_name not in self.models:
             raise ValueError(f"Model {model_name} not found")
 
         model = self.models[model_name]
 
-        # [Translated]features[Translated]HasNaN
+        # featuresHasNaN
         features_clean = features.fillna(0)
 
-        # [Translated]Processfeatures
+        # Processfeatures
         if model_name in ['linear', 'ridge'] and 'standard' in self.scalers:
             features_processed = self.scalers['standard'].transform(features_clean)
         else:
             features_processed = features_clean.values
 
-        # Generate[Translated]
-        predictions = model.predict(features_processed)
+        # Generate        predictions = model.predict(features_processed)
 
         return pd.Series(index=features.index, data=predictions)
 
     def get_feature_importance(self, model_name: str, top_n: int = 20) -> Dict[str, float]:
         """
-Getfeatures[Translated]
-"""
+Getfeatures"""
         if model_name not in self.feature_importance:
             return {}
 
@@ -261,8 +262,7 @@ Getfeatures[Translated]
 
     def get_performance_report(self) -> pd.DataFrame:
         """
-Get[Translated]Hasmodel[Translated]performance[Translated]
-"""
+GetHasmodelperformance"""
         if not self.performance_metrics:
             return pd.DataFrame()
 
@@ -280,8 +280,7 @@ Get[Translated]Hasmodel[Translated]performance[Translated]
 
     def _assess_signal_quality(self, ic: float) -> str:
         """
-Evaluatesignals[Translated]
-"""
+Evaluatesignals"""
         if ic > 0.15:
             return "Strong Signal"
         elif ic > 0.10:
@@ -295,7 +294,7 @@ Evaluatesignals[Translated]
 
     def save_models(self, filepath: str) -> None:
         """
-SaveTrain[Translated]model
+SaveTrainmodel
 """
         import joblib
         save_data = {
@@ -309,7 +308,7 @@ SaveTrain[Translated]model
 
     def load_models(self, filepath: str) -> None:
         """
-Load[Translated]Train models
+LoadTrain models
 """
         import joblib
         save_data = joblib.load(filepath)
@@ -321,8 +320,7 @@ Load[Translated]Train models
 
 
 if __name__ == "__main__":
-    # Test[Translated]
-    from ..data_sources.yahoo_finance import YahooFinanceSource
+    # Test    from ..data_sources.yahoo_finance import YahooFinanceSource
     from ..feature_engineering.technical_indicators import TechnicalIndicators
 
     # Getdata
@@ -338,6 +336,6 @@ if __name__ == "__main__":
     features_clean, target = signal_gen.prepare_features_and_target(features, data)
     results = signal_gen.train_models(features_clean, target)
 
-    # [Translated]results
+    # results
     print("\n=== Model Performance ===")
     print(signal_gen.get_performance_report())

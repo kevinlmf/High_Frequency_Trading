@@ -10,8 +10,11 @@ import warnings
 
 class PerformanceMetrics:
     """
-metricsCalculateclass
-"""
+    Performance Metrics Calculation Class
+
+    Comprehensive performance metrics calculator for trading strategies,
+    including return metrics, risk metrics, trading metrics, and cost analysis.
+    """
 
     def __init__(self, returns: pd.Series, benchmark_returns: Optional[pd.Series] = None,
                  risk_free_rate: float = 0.02, gross_returns: Optional[pd.Series] = None,
@@ -37,36 +40,45 @@ metricsCalculateclass
 
     def calculate_all_metrics(self) -> Dict[str, float]:
         """
-CalculateHasmetrics
-"""
+        Calculate all performance metrics
+
+        Returns:
+            Dictionary containing comprehensive performance metrics
+        """
         metrics = {}
 
-        # metrics
+        #Return metrics
         return_metrics = self._calculate_return_metrics()
         metrics.update(return_metrics)
 
-        # metrics
+        #Risk metrics
         metrics.update(self._calculate_risk_metrics(return_metrics))
 
-        # metrics
+        #Trading metrics
         metrics.update(self._calculate_trading_metrics())
 
-        # metrics
+        #HFT-specific metrics
         metrics.update(self._calculate_hft_metrics())
+
+        #Cost analysis metrics
+        metrics.update(self._calculate_cost_metrics())
 
         return metrics
 
     def _calculate_return_metrics(self) -> Dict[str, float]:
         """
-Calculatemetrics
-"""
+        Calculate return-based performance metrics
+
+        Returns:
+            Dictionary of return metrics
+        """
         metrics = {}
 
-        # 
+        #Cumulative return
         cumulative_return = (1 + self.returns).prod() - 1
         metrics['cumulative_return'] = cumulative_return
 
-        # Annualized return
+        #Annualized return
         if len(self.returns) > 0:
             periods = len(self.returns) / self.trading_days
             if periods > 0 and (1 + cumulative_return) > 0:
@@ -80,10 +92,10 @@ Calculatemetrics
         else:
             metrics['annualized_return'] = 0.0
 
-        # 
+        #Average daily return
         metrics['average_daily_return'] = self.returns.mean()
 
-        #  ()
+        #Excess returns (vs benchmark)
         if self.benchmark_returns is not None:
             excess_returns = self.returns - self.benchmark_returns
             metrics['excess_return'] = excess_returns.mean()
@@ -97,40 +109,40 @@ Calculatemetrics
 """
         metrics = {}
 
-        # 
+        #
         volatility = self.returns.std() * np.sqrt(self.trading_days)
         metrics['volatility'] = volatility
 
-        # Sharpe ratio
+        #Sharpe ratio
         excess_return = self.returns.mean() * self.trading_days - self.risk_free_rate
         if volatility > 0:
             metrics['sharpe_ratio'] = excess_return / volatility
         else:
             metrics['sharpe_ratio'] = 0.0
 
-        # Maximum drawdown
+        #Maximum drawdown
         cumulative = (1 + self.returns).cumprod()
         running_max = cumulative.expanding().max()
         drawdown = (cumulative - running_max) / running_max
         max_drawdown = drawdown.min()
         metrics['max_drawdown'] = max_drawdown
 
-        # 
+        #
         if max_drawdown != 0 and return_metrics:
             annualized_return = return_metrics.get('annualized_return', 0)
             metrics['calmar_ratio'] = annualized_return / abs(max_drawdown)
         else:
             metrics['calmar_ratio'] = np.inf if max_drawdown != 0 else 0.0
 
-        # VaR (5% )
+        #VaR (5% )
         metrics['var_5pct'] = np.percentile(self.returns, 5)
 
-        # CVaR ()
+        #CVaR ()
         var_threshold = metrics['var_5pct']
         cvar_returns = self.returns[self.returns <= var_threshold]
         metrics['cvar_5pct'] = cvar_returns.mean() if len(cvar_returns) > 0 else 0.0
 
-        # Information ratio ()
+        #Information ratio ()
         if self.benchmark_returns is not None:
             excess_returns = self.returns - self.benchmark_returns
             tracking_error = excess_returns.std() * np.sqrt(self.trading_days)
@@ -139,7 +151,7 @@ Calculatemetrics
             else:
                 metrics['information_ratio'] = 0.0
 
-        # 
+        #
         metrics['skewness'] = self.returns.skew()
         metrics['kurtosis'] = self.returns.kurtosis()
 
@@ -151,11 +163,11 @@ Calculatemetrics
 """
         metrics = {}
 
-        #  (Win rate)
+        # (Win rate)
         positive_returns = self.returns > 0
         metrics['win_rate'] = positive_returns.mean()
 
-        # Profit/Loss ratio
+        #Profit/Loss ratio
         positive_avg = self.returns[positive_returns].mean() if positive_returns.sum() > 0 else 0
         negative_avg = abs(self.returns[~positive_returns].mean()) if (~positive_returns).sum() > 0 else 0
 
@@ -164,14 +176,14 @@ Calculatemetrics
         else:
             metrics['profit_loss_ratio'] = np.inf if positive_avg > 0 else 0
 
-        #  ()
+        # ()
         metrics['trade_frequency'] = len(self.returns)
 
-        # /
+        #/
         returns_sign = np.sign(self.returns)
         changes = np.diff(np.concatenate(([0], returns_sign, [0])))
 
-        # 
+        #
         if len(changes) > 0:
             consecutive_wins = self._get_max_consecutive(returns_sign, 1)
             consecutive_losses = self._get_max_consecutive(returns_sign, -1)
@@ -189,29 +201,29 @@ Calculatemetrics
 """
         metrics = {}
 
-        # Time ()
-        metrics['avg_holding_period'] = 1.0  # 
+        #Time ()
+        metrics['avg_holding_period'] = 1.0  #
 
-        #  (/)
+        # (/)
         if self.returns.mean() != 0:
             metrics['return_stability'] = self.returns.std() / abs(self.returns.mean())
         else:
             metrics['return_stability'] = np.inf
 
-        # 
+        #
         metrics['intraday_volatility'] = self.returns.std()
 
-        #  (CheckIsNotInMean reversion)
+        # (CheckIsNotInMean reversion)
         if len(self.returns) > 1:
             metrics['return_autocorr'] = self.returns.autocorr(lag=1)
         else:
             metrics['return_autocorr'] = 0.0
 
-        # /
+        #/
         metrics['max_daily_gain'] = self.returns.max()
         metrics['max_daily_loss'] = self.returns.min()
 
-        # 
+        #
         metrics['tail_ratio'] = (abs(np.percentile(self.returns, 95)) /
                                abs(np.percentile(self.returns, 5))) if np.percentile(self.returns, 5) != 0 else np.inf
 
@@ -223,10 +235,10 @@ Calculatemetrics
         """
         metrics = {}
 
-        # Cost to capital ratio
+        #Cost to capital ratio
         metrics['cost_to_capital_ratio'] = self.total_costs / self.initial_capital
 
-        # Cost impact on returns
+        #Cost impact on returns
         if self.gross_returns is not None and len(self.gross_returns) > 0:
             gross_total_return = (1 + self.gross_returns).prod() - 1
             net_total_return = (1 + self.returns).prod() - 1
@@ -235,7 +247,7 @@ Calculatemetrics
             metrics['cost_drag'] = gross_total_return - net_total_return
             metrics['cost_drag_pct'] = (metrics['cost_drag'] / abs(gross_total_return) * 100) if gross_total_return != 0 else 0
 
-            # Break-even analysis
+            #Break-even analysis
             metrics['breakeven_trades'] = self._calculate_breakeven_trades()
         else:
             metrics['gross_cumulative_return'] = metrics.get('cumulative_return', 0)
@@ -243,7 +255,7 @@ Calculatemetrics
             metrics['cost_drag_pct'] = 0
             metrics['breakeven_trades'] = 0
 
-        # Transaction efficiency
+        #Transaction efficiency
         if len(self.returns) > 0:
             avg_return_per_period = self.returns.mean()
             avg_cost_per_period = self.total_costs / len(self.returns) if len(self.returns) > 0 else 0
@@ -299,19 +311,19 @@ Calculatemetrics
 
         rolling_metrics = pd.DataFrame(index=self.returns.index[window-1:])
 
-        # Sharpe ratio
+        #Sharpe ratio
         rolling_returns = self.returns.rolling(window)
         rolling_metrics['rolling_sharpe'] = (
             (rolling_returns.mean() * self.trading_days - self.risk_free_rate) /
             (rolling_returns.std() * np.sqrt(self.trading_days))
         )
 
-        # Maximum drawdown
+        #Maximum drawdown
         cumulative = (1 + self.returns).cumprod()
         rolling_max = cumulative.rolling(window).max()
         rolling_metrics['rolling_drawdown'] = (cumulative - rolling_max) / rolling_max
 
-        # 
+        #
         rolling_metrics['rolling_volatility'] = (
             rolling_returns.std() * np.sqrt(self.trading_days)
         )
@@ -325,24 +337,27 @@ Calculatemetrics
 
     def generate_performance_report(self) -> str:
         """
-Generate
-"""
+        Generate comprehensive performance report
+
+        Returns:
+            Formatted performance report string
+        """
         metrics = self.calculate_all_metrics()
 
-        report = "=== strategy ===\n\n"
+        report = "=== Strategy Performance Report ===\n\n"
 
-        # metrics
-        report += "📈 metrics:\n"
-        report += f"  : {metrics['cumulative_return']:.2%}\n"
+        # Return metrics
+        report += "📈 Return Metrics:\n"
+        report += f"  Cumulative return: {metrics['cumulative_return']:.2%}\n"
         report += f"  Annualized return: {metrics['annualized_return']:.2%}\n"
-        report += f"  : {metrics['average_daily_return']:.4%}\n"
+        report += f"  Average daily return: {metrics['average_daily_return']:.4%}\n"
 
         if 'excess_return' in metrics:
-            report += f"  : {metrics['excess_return']:.4%}\n"
+            report += f"  Excess return: {metrics['excess_return']:.4%}\n"
 
         report += "\n"
 
-        # metrics
+        #metrics
         report += "⚠️ metrics:\n"
         report += f"  : {metrics['volatility']:.2%}\n"
         report += f"  Maximum drawdown: {metrics['max_drawdown']:.2%}\n"
@@ -356,7 +371,7 @@ Generate
 
         report += "\n"
 
-        # 
+        #
         report += "📊 :\n"
         report += f"  Win rate: {metrics['win_rate']:.2%}\n"
         report += f"  Profit/Loss ratio: {metrics['profit_loss_ratio']:.3f}\n"
@@ -366,7 +381,7 @@ Generate
 
         report += "\n"
 
-        # 
+        #
         report += "⚡ HFT-specific metrics:\n"
         report += f"  Return stability: {metrics['return_stability']:.3f}\n"
         report += f"  Return autocorr: {metrics['return_autocorr']:.3f}\n"
@@ -376,7 +391,7 @@ Generate
 
         report += "\n"
 
-        # Cost analysis metrics
+        #Cost analysis metrics
         report += "💰 Cost Analysis:\n"
         report += f"  Cost to capital ratio: {metrics.get('cost_to_capital_ratio', 0):.4%}\n"
         report += f"  Gross cumulative return: {metrics.get('gross_cumulative_return', 0):.2%}\n"
@@ -416,31 +431,31 @@ Comparestrategymetrics
     return pd.DataFrame(comparison_results).T
 
 
-# ExampleUsing
+#ExampleUsing
 if __name__ == "__main__":
-    # GenerateExampledata
+    #GenerateExampledata
     np.random.seed(42)
     dates = pd.date_range('2023-01-01', periods=250, freq='D')
 
-    # strategy
+    #strategy
     strategy_returns = pd.Series(
         np.random.normal(0.001, 0.02, 250),
         index=dates
     )
 
-    # 
+    #
     benchmark_returns = pd.Series(
         np.random.normal(0.0005, 0.015, 250),
         index=dates
     )
 
-    # Calculatemetrics
+    #Calculatemetrics
     perf_metrics = PerformanceMetrics(strategy_returns, benchmark_returns)
 
-    # Output
+    #Output
     print(perf_metrics.generate_performance_report())
 
-    # Calculatemetrics
+    #Calculatemetrics
     rolling_metrics = perf_metrics.calculate_rolling_metrics(30)
     print("\nmetrics (5):")
     print(rolling_metrics.tail())

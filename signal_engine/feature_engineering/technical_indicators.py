@@ -38,7 +38,7 @@ class TechnicalIndicators:
         """
         logger.info("Calculating all technical indicators...")
 
-        # [Translated]Price features
+        # Basic price features
         self._calculate_price_features()
 
         # Return features
@@ -59,10 +59,10 @@ class TechnicalIndicators:
         # Technical indicators
         self._calculate_technical_indicators()
 
-        # [Translated]features
+        # Microstructure features
         self._calculate_microstructure_features()
 
-        # Timefeatures
+        # Time-based features
         self._calculate_time_features()
 
         logger.info(f"Generated {len(self.features.columns)} technical features")
@@ -74,17 +74,17 @@ class TechnicalIndicators:
         """
         data = self.data
 
-        # [Translated]
+        # Basic price levels
         self.features['close_price'] = data['close']
         self.features['high_price'] = data['high']
         self.features['low_price'] = data['low']
         self.features['open_price'] = data['open']
 
-        # [Translated]
+        # Price spreads
         self.features['hl_spread'] = data['high'] - data['low']
         self.features['oc_spread'] = data['open'] - data['close']
 
-        # [Translated]
+        # Price ratios
         self.features['close_to_high'] = data['close'] / data['high']
         self.features['close_to_low'] = data['close'] / data['low']
         self.features['hl_ratio'] = data['high'] / data['low']
@@ -93,29 +93,29 @@ class TechnicalIndicators:
         """Return features"""
         data = self.data
 
-        # [Translated]
+        # Simple returns
         self.features['return_1'] = data['close'].pct_change(1)
         self.features['return_5'] = data['close'].pct_change(5)
         self.features['return_10'] = data['close'].pct_change(10)
 
-        # [Translated]
+        # Log returns
         self.features['log_return_1'] = np.log(data['close'] / data['close'].shift(1))
 
-        # [Translated]
+        # Cumulative returns
         self.features['cum_return_10'] = (data['close'] / data['close'].shift(10) - 1)
 
     def _calculate_moving_average_features(self):
         """Moving average features"""
         close = self.data['close']
 
-        # [Translated]
+        # Simple moving averages
         for window in [5, 10, 20, 50]:
             ma_col = f'ma_{window}'
             self.features[ma_col] = close.rolling(window).mean()
             self.features[f'price_to_{ma_col}'] = close / self.features[ma_col]
             self.features[f'{ma_col}_slope'] = self.features[ma_col].diff(3)
 
-        # [Translated]
+        # Exponential moving averages
         for span in [5, 10, 20]:
             ema_col = f'ema_{span}'
             self.features[ema_col] = close.ewm(span=span).mean()
@@ -142,7 +142,7 @@ class TechnicalIndicators:
         self.features['macd_signal'] = self.features['macd'].ewm(9).mean()
         self.features['macd_histogram'] = self.features['macd'] - self.features['macd_signal']
 
-        # [Translated]
+        # Stochastic oscillator
         lowest_low = low.rolling(14).min()
         highest_high = high.rolling(14).max()
         self.features['stoch_k'] = 100 * ((close - lowest_low) / (highest_high - lowest_low))
@@ -153,7 +153,7 @@ class TechnicalIndicators:
         data = self.data
         close = data['close']
 
-        # [Translated]
+        # Rolling volatility
         returns = close.pct_change()
         for window in [5, 10, 20]:
             self.features[f'volatility_{window}'] = returns.rolling(window).std() * np.sqrt(252)
@@ -165,7 +165,7 @@ class TechnicalIndicators:
         true_range = np.maximum(high_low, np.maximum(high_close, low_close))
         self.features['atr'] = true_range.rolling(14).mean()
 
-        # [Translated]
+        # Bollinger Bands
         ma20 = close.rolling(20).mean()
         std20 = close.rolling(20).std()
         self.features['bollinger_upper'] = ma20 + (2 * std20)
@@ -177,11 +177,11 @@ class TechnicalIndicators:
         volume = self.data['volume']
         close = self.data['close']
 
-        # [Translated]
+        # Volume moving average
         self.features['volume_ma_10'] = volume.rolling(10).mean()
         self.features['volume_ratio'] = volume / self.features['volume_ma_10']
 
-        # [Translated]
+        # Price-volume metrics
         self.features['price_volume'] = close * volume
 
         # VWAP (Volume Weighted Average Price)
@@ -189,17 +189,17 @@ class TechnicalIndicators:
         self.features['vwap'] = (typical_price * volume).rolling(20).sum() / volume.rolling(20).sum()
         self.features['price_to_vwap'] = close / self.features['vwap']
 
-        # [Translated]metrics
+        # Money Flow Index
         money_flow = typical_price * volume
         positive_flow = money_flow.where(typical_price > typical_price.shift(), 0).rolling(14).sum()
         negative_flow = money_flow.where(typical_price < typical_price.shift(), 0).rolling(14).sum()
         self.features['mfi'] = 100 - (100 / (1 + (positive_flow / negative_flow)))
 
     def _calculate_technical_indicators(self):
-        """[Translated]Technical indicators"""
+        """Additional technical indicators"""
         close = self.data['close']
 
-        # [Translated]metrics
+        # Williams %R indicator
         high_14 = self.data['high'].rolling(14).max()
         low_14 = self.data['low'].rolling(14).min()
         self.features['williams_r'] = -100 * (high_14 - close) / (high_14 - low_14)
@@ -211,28 +211,28 @@ class TechnicalIndicators:
         self.features['cci'] = (typical_price - sma_tp) / (0.015 * mad)
 
     def _calculate_microstructure_features(self):
-        """[Translated]features ([Translated])"""
+        """Market microstructure features (simulated)"""
         data = self.data
 
-        # [Translated]features ([Translated]high-low[Translated]bid-ask spread)
+        # Spread features (approximated using high-low as proxy for bid-ask spread)
         self.features['spread'] = data['high'] - data['low']
         self.features['spread_ma'] = self.features['spread'].rolling(10).mean()
         self.features['relative_spread'] = self.features['spread'] / data['close']
 
-        # [Translated] ([Translated])
+        # Price impact (approximated)
         self.features['price_impact'] = np.abs(data['close'] - data['open']) / data['volume'].replace(0, np.nan)
 
     def _calculate_time_features(self):
-        """Timefeatures"""
+        """Time-based features"""
         if 'timestamp' in self.data.columns:
             timestamps = pd.to_datetime(self.data['timestamp'])
             self.features['hour'] = timestamps.dt.hour
             self.features['minute'] = timestamps.dt.minute
             self.features['day_of_week'] = timestamps.dt.dayofweek
 
-        # Time[Translated]features
+        # Time cyclical features
         n_periods = len(self.data)
-        self.features['time_sin'] = np.sin(2 * np.pi * np.arange(n_periods) / (24 * 60))  # [Translated]1[Translated]data
+        self.features['time_sin'] = np.sin(2 * np.pi * np.arange(n_periods) / (24 * 60))  # Assumes 1-minute data
         self.features['time_cos'] = np.cos(2 * np.pi * np.arange(n_periods) / (24 * 60))
 
     def get_feature_summary(self) -> Dict[str, Any]:
@@ -247,7 +247,7 @@ class TechnicalIndicators:
 
 
 if __name__ == "__main__":
-    # Test[Translated]
+    # Test technical indicators
     from ..data_sources.yahoo_finance import YahooFinanceSource
 
     source = YahooFinanceSource()
@@ -257,4 +257,4 @@ if __name__ == "__main__":
     features = indicators.calculate_all_features()
 
     print(f"Generated {len(features.columns)} features")
-    print("Feature columns:", list(features.columns)[:10])  # [Translated]10[Translated]features
+    print("Feature columns:", list(features.columns)[:10])  # Show first 10 features
