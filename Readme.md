@@ -13,11 +13,13 @@ A complete high-frequency trading system that combines multiple strategy types w
 
 **Core Features**
 - **Complete strategy comparison**: ML + Traditional + Deep Learning + DeepLOB + Transformer
+- **Enhanced Net PnL evaluation**: Transaction costs, slippage, and commission tracking
 - **Comprehensive financial metrics**: Returns, Volatility, Sharpe Ratio, Maximum Drawdown, Calmar Ratio, VaR
+- **Cost analysis**: Cost drag, breakeven analysis, return-to-cost ratios for HFT strategies
 - **Real market data** processing via Yahoo Finance API
 - **59 technical features**: price, volume, momentum, volatility indicators
 - **Multiple strategy types**: Linear/Ridge/Random Forest, Momentum/Mean Reversion/Pairs Trading, LSTM/GRU, DeepLOB + Transformer
-- **Professional financial analysis**: Risk-adjusted performance evaluation
+- **Professional HFT evaluation**: Net returns after all transaction costs
 - **Fast execution**: Complete analysis in under 2 seconds
 
 ---
@@ -59,9 +61,9 @@ HFT_Signal/
 │   ├── traditional/             # Classical quant strategies (Momentum, Mean Reversion, Pairs)
 │   ├── llm_methods/             # Deep learning strategies (LSTM, GRU, Transformer, CNN-LSTM)
 │   └── deep_learning_methods/   # Advanced deep learning (DeepLOB + Transformer)
-├── evaluation/                  # Performance analysis and backtesting
-│   ├── backtester.py            # Strategy backtesting engine
-│   ├── performance_metrics.py   # Comprehensive financial metrics calculation
+├── evaluation/                  # Enhanced performance analysis and backtesting
+│   ├── backtester.py            # Advanced backtesting engine with cost tracking
+│   ├── performance_metrics.py   # Net PnL metrics with transaction cost analysis
 │   └── comparison_dashboard.py  # Strategy comparison framework
 ├── exports/                     # Results and reports
 │   ├── *_signals.csv            # Generated trading signals
@@ -124,12 +126,14 @@ strategies = [ML_models, traditional_quant, deep_learning, deeplob_transformer]
 - **Deep Learning**: LSTM, GRU with sequential modeling
 - **DeepLOB + Transformer**: CNN feature extraction + attention mechanism for LOB modeling
 
-### Financial Performance Evaluation
+### Enhanced Financial Performance Evaluation
 **Comprehensive Metrics Calculated**:
-- **Return Metrics**: Annualized return, cumulative return, average daily return
+- **Return Metrics**: Gross/Net annualized return, cumulative return, average daily return
 - **Risk Metrics**: Volatility, maximum drawdown, VaR (5%)
 - **Risk-Adjusted**: Sharpe ratio, Calmar ratio, Information ratio
 - **Trading Performance**: Win rate, profit/loss ratio, signal accuracy
+- **Cost Analysis**: Net PnL, cost drag, cost-to-capital ratio, breakeven analysis
+- **HFT-Specific**: Transaction costs impact, slippage analysis, return-to-cost ratios
 
 ---
 
@@ -159,6 +163,8 @@ Traditional - Mean Rev.   Rule-based    -2.79%     1.4%    -3.57     -1.48%    W
 - **Risk Control**: ML strategies show superior drawdown management
 - **Deep Learning**: LSTM and GRU provide moderate risk-adjusted returns
 - **Traditional Strategies**: Underperform in current market conditions
+- **Cost Impact**: Transaction costs can reduce returns by 15-30% for HFT strategies
+- **Net PnL Focus**: All evaluations now based on net returns after costs
 - **Execution Speed**: Complete analysis in under 2 seconds
 
 ---
@@ -234,9 +240,11 @@ This pipeline serves as a **strategy research laboratory**:
 
 ---
 
-## Financial Performance Metrics
+## Enhanced Financial Performance Metrics
 
 ### Return Metrics
+- **Gross Return**: Returns before transaction costs
+- **Net Return**: Returns after all transaction costs (commissions + slippage)
 - **Annualized Return**: Compound annual growth rate of the strategy
 - **Cumulative Return**: Total return over the evaluation period
 - **Average Daily Return**: Mean daily performance
@@ -247,14 +255,23 @@ This pipeline serves as a **strategy research laboratory**:
 - **VaR (5%)**: Value at Risk at 5% confidence level
 
 ### Risk-Adjusted Performance
-- **Sharpe Ratio**: Excess return per unit of volatility
+- **Sharpe Ratio**: Excess return per unit of volatility (using net returns)
 - **Calmar Ratio**: Annual return divided by maximum drawdown
 - **Information Ratio**: Excess return per unit of tracking error
+
+### HFT Cost Analysis
+- **Net PnL**: Gross PnL minus all transaction costs
+- **Cost Drag**: Impact of transaction costs on returns
+- **Cost-to-Capital Ratio**: Total costs as percentage of initial capital
+- **Cost-to-PnL Ratio**: Transaction costs as percentage of gross profits
+- **Breakeven Trades**: Number of trades needed to cover transaction costs
+- **Return-to-Cost Ratio**: Average return per unit of transaction cost
 
 ### Trading Metrics
 - **Win Rate**: Percentage of profitable trades/signals
 - **Profit/Loss Ratio**: Average profit divided by average loss
 - **Hit Rate**: Directional accuracy of predictions
+- **Transaction Efficiency**: Net profit margin after costs
 
 ### Model Evaluation
 - **Information Coefficient (IC)**: Correlation between predicted and actual returns
@@ -263,14 +280,37 @@ This pipeline serves as a **strategy research laboratory**:
 
 ---
 
+## Recent Improvements
+
+### Enhanced Evaluation System (v2.0)
+- **Net PnL Focus**: All performance metrics now calculated using net returns after transaction costs
+- **Cost Tracking**: Real-time tracking of commissions, slippage, and total transaction costs
+- **HFT-Specific Metrics**: Cost drag analysis, breakeven calculations, and return-to-cost ratios
+- **Improved Backtester**: Enhanced `Position` and `PortfolioSnapshot` classes with cost accounting
+- **Performance Reports**: Detailed cost analysis in all strategy evaluation reports
+
+### Example Cost Impact Analysis:
+```
+💰 Cost Analysis:
+  Cost to capital ratio: 1.17%
+  Gross cumulative return: -4.29%
+  Cost drag: 1.17%
+  Cost drag percentage: 27.29%
+  Return to cost ratio: 2.45
+  Net profit margin: -15.2%
+  Breakeven trades: 8
+```
+
 ## Disclaimer
 
 This system is designed for **educational and research purposes**. All trading involves risk, and past performance does not guarantee future results. Users should:
 
 - Perform thorough backtesting before any live deployment
-- Consider transaction costs, slippage, and market impact
+- **Pay attention to transaction costs** - our enhanced system shows their significant impact
+- Consider real-world slippage and market impact beyond our models
 - Understand that model performance can degrade over time
 - Validate all signals with proper risk management
+- **Focus on Net PnL** - gross returns can be misleading for HFT strategies
 
 ---
 

@@ -14,19 +14,26 @@ metricsCalculateclass
 """
 
     def __init__(self, returns: pd.Series, benchmark_returns: Optional[pd.Series] = None,
-                 risk_free_rate: float = 0.02):
+                 risk_free_rate: float = 0.02, gross_returns: Optional[pd.Series] = None,
+                 total_costs: Optional[float] = None, initial_capital: Optional[float] = None):
         """
-InitializemetricsCalculate
+        Initialize performance metrics calculator
 
         Args:
-            returns: strategy
-            benchmark_returns: 
-            risk_free_rate: No ()
-"""
+            returns: Net strategy returns (after costs)
+            benchmark_returns: Benchmark returns
+            risk_free_rate: Risk-free rate (annual)
+            gross_returns: Gross returns (before costs)
+            total_costs: Total transaction costs
+            initial_capital: Initial capital for cost ratio calculations
+        """
         self.returns = returns
         self.benchmark_returns = benchmark_returns
         self.risk_free_rate = risk_free_rate
         self.trading_days = 252
+        self.gross_returns = gross_returns
+        self.total_costs = total_costs or 0.0
+        self.initial_capital = initial_capital or 1.0
 
     def calculate_all_metrics(self) -> Dict[str, float]:
         """
@@ -210,6 +217,59 @@ Calculatemetrics
 
         return metrics
 
+    def _calculate_cost_metrics(self) -> Dict[str, float]:
+        """
+        Calculate cost-related metrics for HFT evaluation
+        """
+        metrics = {}
+
+        # Cost to capital ratio
+        metrics['cost_to_capital_ratio'] = self.total_costs / self.initial_capital
+
+        # Cost impact on returns
+        if self.gross_returns is not None and len(self.gross_returns) > 0:
+            gross_total_return = (1 + self.gross_returns).prod() - 1
+            net_total_return = (1 + self.returns).prod() - 1
+
+            metrics['gross_cumulative_return'] = gross_total_return
+            metrics['cost_drag'] = gross_total_return - net_total_return
+            metrics['cost_drag_pct'] = (metrics['cost_drag'] / abs(gross_total_return) * 100) if gross_total_return != 0 else 0
+
+            # Break-even analysis
+            metrics['breakeven_trades'] = self._calculate_breakeven_trades()
+        else:
+            metrics['gross_cumulative_return'] = metrics.get('cumulative_return', 0)
+            metrics['cost_drag'] = 0
+            metrics['cost_drag_pct'] = 0
+            metrics['breakeven_trades'] = 0
+
+        # Transaction efficiency
+        if len(self.returns) > 0:
+            avg_return_per_period = self.returns.mean()
+            avg_cost_per_period = self.total_costs / len(self.returns) if len(self.returns) > 0 else 0
+            metrics['return_to_cost_ratio'] = abs(avg_return_per_period) / avg_cost_per_period if avg_cost_per_period > 0 else float('inf')
+            metrics['net_profit_margin'] = (avg_return_per_period / abs(avg_return_per_period + avg_cost_per_period)) * 100 if (avg_return_per_period + avg_cost_per_period) != 0 else 0
+        else:
+            metrics['return_to_cost_ratio'] = 0
+            metrics['net_profit_margin'] = 0
+
+        return metrics
+
+    def _calculate_breakeven_trades(self) -> int:
+        """
+        Calculate number of trades needed to break even on costs
+        """
+        if len(self.returns) == 0 or self.returns.mean() <= 0:
+            return float('inf')
+
+        avg_return_per_period = self.returns.mean()
+        avg_cost_per_period = self.total_costs / len(self.returns)
+
+        if avg_return_per_period <= 0:
+            return float('inf')
+
+        return int(np.ceil(avg_cost_per_period / avg_return_per_period))
+
     def _get_max_consecutive(self, series: np.ndarray, value: int) -> int:
         """
 Calculate
@@ -307,12 +367,29 @@ Generate
         report += "\n"
 
         # 
-        report += "⚡ :\n"
-        report += f"  : {metrics['return_stability']:.3f}\n"
-        report += f"  : {metrics['return_autocorr']:.3f}\n"
-        report += f"  : {metrics['max_daily_gain']:.3%}\n"
-        report += f"  : {metrics['max_daily_loss']:.3%}\n"
-        report += f"  : {metrics['tail_ratio']:.3f}\n"
+        report += "⚡ HFT-specific metrics:\n"
+        report += f"  Return stability: {metrics['return_stability']:.3f}\n"
+        report += f"  Return autocorr: {metrics['return_autocorr']:.3f}\n"
+        report += f"  Max daily gain: {metrics['max_daily_gain']:.3%}\n"
+        report += f"  Max daily loss: {metrics['max_daily_loss']:.3%}\n"
+        report += f"  Tail ratio: {metrics['tail_ratio']:.3f}\n"
+
+        report += "\n"
+
+        # Cost analysis metrics
+        report += "💰 Cost Analysis:\n"
+        report += f"  Cost to capital ratio: {metrics.get('cost_to_capital_ratio', 0):.4%}\n"
+        report += f"  Gross cumulative return: {metrics.get('gross_cumulative_return', 0):.2%}\n"
+        report += f"  Cost drag: {metrics.get('cost_drag', 0):.4%}\n"
+        report += f"  Cost drag percentage: {metrics.get('cost_drag_pct', 0):.2f}%\n"
+        report += f"  Return to cost ratio: {metrics.get('return_to_cost_ratio', 0):.2f}\n"
+        report += f"  Net profit margin: {metrics.get('net_profit_margin', 0):.2f}%\n"
+
+        breakeven = metrics.get('breakeven_trades', 0)
+        if breakeven == float('inf'):
+            report += f"  Breakeven trades: Cannot break even\n"
+        else:
+            report += f"  Breakeven trades: {breakeven}\n"
 
         return report
 

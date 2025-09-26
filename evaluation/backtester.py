@@ -30,26 +30,64 @@ class Trade:
 @dataclass
 class Position:
     """
-
-"""
+    Position tracking with cost accounting
+    """
     symbol: str
     quantity: float
     avg_price: float
     market_value: float
     unrealized_pnl: float
     realized_pnl: float
+    total_commission: float = 0.0  # Total commission paid for this position
+    total_slippage: float = 0.0    # Total slippage cost for this position
+
+    @property
+    def net_realized_pnl(self) -> float:
+        """Net realized PnL after costs"""
+        return self.realized_pnl - self.total_commission - self.total_slippage
+
+    @property
+    def net_unrealized_pnl(self) -> float:
+        """Net unrealized PnL (no transaction costs for unrealized)"""
+        return self.unrealized_pnl
 
 @dataclass
 class PortfolioSnapshot:
     """
-
-"""
+    Portfolio snapshot with net PnL tracking
+    """
     timestamp: datetime
     cash: float
     positions: Dict[str, Position]
     total_value: float
     daily_pnl: float
     total_pnl: float
+    daily_commission: float = 0.0
+    daily_slippage: float = 0.0
+    total_commission: float = 0.0
+    total_slippage: float = 0.0
+
+    @property
+    def net_daily_pnl(self) -> float:
+        """Net daily PnL after transaction costs"""
+        return self.daily_pnl - self.daily_commission - self.daily_slippage
+
+    @property
+    def net_total_pnl(self) -> float:
+        """Net total PnL after all transaction costs"""
+        return self.total_pnl - self.total_commission - self.total_slippage
+
+    @property
+    def total_costs(self) -> float:
+        """Total transaction costs"""
+        return self.total_commission + self.total_slippage
+
+    @property
+    def cost_to_pnl_ratio(self) -> float:
+        """Ratio of total costs to gross PnL"""
+        if self.total_pnl == 0:
+            return float('inf') if self.total_costs > 0 else 0.0
+        return self.total_costs / abs(self.total_pnl)
 
 class DataProvider(ABC):
     """
@@ -205,12 +243,18 @@ class Backtester:
         self.initial_capital = initial_capital
         self.benchmark_symbol = benchmark_symbol
 
-        # 
+        # Trading state tracking
         self.cash = initial_capital
         self.positions = {}  # {symbol: Position}
         self.trades = []  # List[Trade]
         self.portfolio_history = []  # List[PortfolioSnapshot]
         self.performance_history = pd.DataFrame()
+
+        # Cost tracking
+        self.total_commission = 0.0
+        self.total_slippage = 0.0
+        self.daily_commission = 0.0
+        self.daily_slippage = 0.0
 
     def run_backtest(self,
                     strategy: TradingStrategy,
@@ -241,11 +285,17 @@ class Backtester:
         else:
             time_range = pd.date_range(start_date, end_date, freq='T')
 
-        # 
+        # Reset state
         self.cash = self.initial_capital
         self.positions = {}
         self.trades = []
         self.portfolio_history = []
+
+        # Reset cost tracking
+        self.total_commission = 0.0
+        self.total_slippage = 0.0
+        self.daily_commission = 0.0
+        self.daily_slippage = 0.0
 
         # Time
         for timestamp in time_range:
@@ -263,30 +313,34 @@ class Backtester:
         """
         Process timestamp
         """
-        # Getdata
+        # Reset daily costs
+        self.daily_commission = 0.0
+        self.daily_slippage = 0.0
+
+        # Get market data
         market_data = self.data_provider.get_market_data(symbols, timestamp)
 
         if not market_data:
             return
 
-        # Update
+        # Update positions
         self._update_positions(market_data, timestamp)
 
-        # CreateWhen
+        # Create portfolio snapshot
         portfolio_snapshot = self._create_portfolio_snapshot(timestamp)
 
         # Generate trading signals
         try:
             signals = strategy.generate_signals(market_data, portfolio_snapshot)
         except Exception as e:
-            warnings.warn(f"strategySignal GenerationFailed at {timestamp}: {e}")
+            warnings.warn(f"Strategy signal generation failed at {timestamp}: {e}")
             signals = {}
 
-        # 
+        # Execute trades
         if signals:
             self._execute_rebalance(signals, market_data, timestamp)
 
-        # 
+        # Store portfolio snapshot with updated costs
         self.portfolio_history.append(self._create_portfolio_snapshot(timestamp))
 
     def _update_positions(self, market_data: Dict[str, Dict[str, float]], timestamp: datetime):
@@ -341,12 +395,22 @@ Update
         symbol = trade.symbol
 
         if symbol not in self.positions:
-            self.positions[symbol] = Position(symbol, 0, 0, 0, 0, 0)
+            self.positions[symbol] = Position(symbol, 0, 0, 0, 0, 0, 0.0, 0.0)
 
         position = self.positions[symbol]
 
+        # Update position costs
+        position.total_commission += trade.commission
+        position.total_slippage += trade.slippage
+
+        # Update daily and total costs
+        self.daily_commission += trade.commission
+        self.daily_slippage += trade.slippage
+        self.total_commission += trade.commission
+        self.total_slippage += trade.slippage
+
         if trade.side == 'buy':
-            # 
+            # Buy trade
             new_quantity = position.quantity + trade.quantity
             if new_quantity > 0:
                 position.avg_price = ((position.quantity * position.avg_price +
@@ -354,18 +418,18 @@ Update
             position.quantity = new_quantity
             self.cash -= trade.quantity * trade.execution_price + trade.commission
         else:
-            # 
+            # Sell trade
             if position.quantity >= trade.quantity:
                 realized_pnl = (trade.execution_price - position.avg_price) * trade.quantity
                 position.realized_pnl += realized_pnl
                 position.quantity -= trade.quantity
                 self.cash += trade.quantity * trade.execution_price - trade.commission
             else:
-                # 
+                # Short selling or insufficient position
                 position.quantity -= trade.quantity
                 self.cash += trade.quantity * trade.execution_price - trade.commission
 
-        # 
+        # Clean up zero positions
         if abs(position.quantity) < 1e-6:
             del self.positions[symbol]
 
@@ -389,7 +453,11 @@ Create
             positions=self.positions.copy(),
             total_value=total_value,
             daily_pnl=daily_pnl,
-            total_pnl=total_pnl
+            total_pnl=total_pnl,
+            daily_commission=self.daily_commission,
+            daily_slippage=self.daily_slippage,
+            total_commission=self.total_commission,
+            total_slippage=self.total_slippage
         )
 
     def _calculate_results(self, symbols: List[str]) -> Dict[str, Any]:
@@ -404,7 +472,16 @@ CalculateBacktest results
         timestamps = [snapshot.timestamp for snapshot in self.portfolio_history]
 
         portfolio_series = pd.Series(portfolio_values, index=timestamps)
-        returns = portfolio_series.pct_change().dropna()
+        gross_returns = portfolio_series.pct_change().dropna()
+
+        # Calculate net returns (after transaction costs)
+        net_values = [snapshot.total_value - snapshot.total_commission - snapshot.total_slippage
+                     for snapshot in self.portfolio_history]
+        net_portfolio_series = pd.Series(net_values, index=timestamps)
+        net_returns = net_portfolio_series.pct_change().dropna()
+
+        # Use net returns for performance metrics
+        returns = net_returns
 
         # Get
         benchmark_returns = None
@@ -418,14 +495,20 @@ CalculateBacktest results
                 benchmark_price_col = 'close' if 'close' in benchmark_data.columns else 'price'
                 benchmark_returns = benchmark_data[benchmark_price_col].pct_change().dropna()
 
-        # Calculatemetrics
-        perf_metrics = PerformanceMetrics(returns, benchmark_returns)
+        # Calculate performance metrics with cost analysis
+        perf_metrics = PerformanceMetrics(
+            returns=returns,
+            benchmark_returns=benchmark_returns,
+            gross_returns=gross_returns,
+            total_costs=self.total_commission + self.total_slippage,
+            initial_capital=self.initial_capital
+        )
         metrics = perf_metrics.calculate_all_metrics()
 
         # 
         trade_stats = self._calculate_trade_statistics()
 
-        # data
+        # Enhanced portfolio dataframe with net PnL
         portfolio_df = pd.DataFrame([
             {
                 'timestamp': snapshot.timestamp,
@@ -433,7 +516,16 @@ CalculateBacktest results
                 'cash': snapshot.cash,
                 'daily_pnl': snapshot.daily_pnl,
                 'total_pnl': snapshot.total_pnl,
-                'return': (snapshot.total_value / self.initial_capital - 1) * 100
+                'net_daily_pnl': snapshot.net_daily_pnl,
+                'net_total_pnl': snapshot.net_total_pnl,
+                'daily_commission': snapshot.daily_commission,
+                'daily_slippage': snapshot.daily_slippage,
+                'total_commission': snapshot.total_commission,
+                'total_slippage': snapshot.total_slippage,
+                'total_costs': snapshot.total_costs,
+                'return': (snapshot.total_value / self.initial_capital - 1) * 100,
+                'net_return': (snapshot.net_total_pnl / self.initial_capital) * 100,
+                'cost_to_pnl_ratio': snapshot.cost_to_pnl_ratio
             }
             for snapshot in self.portfolio_history
         ])
@@ -457,9 +549,19 @@ CalculateBacktest results
                 for trade in self.trades
             ]),
             'final_positions': self.positions,
-            'returns_series': returns,
+            'gross_returns': gross_returns,
+            'net_returns': net_returns,
+            'returns_series': returns,  # This is now net returns
             'benchmark_returns': benchmark_returns,
-            'performance_report': perf_metrics.generate_performance_report()
+            'performance_report': perf_metrics.generate_performance_report(),
+            'net_pnl_summary': {
+                'gross_pnl': self.portfolio_history[-1].total_pnl if self.portfolio_history else 0,
+                'net_pnl': self.portfolio_history[-1].net_total_pnl if self.portfolio_history else 0,
+                'total_commission': self.total_commission,
+                'total_slippage': self.total_slippage,
+                'total_costs': self.total_commission + self.total_slippage,
+                'cost_ratio': (self.total_commission + self.total_slippage) / abs(self.portfolio_history[-1].total_pnl) if self.portfolio_history and self.portfolio_history[-1].total_pnl != 0 else 0
+            }
         }
 
     def _calculate_trade_statistics(self) -> Dict[str, Any]:
