@@ -69,7 +69,7 @@ features = processor.extract_features(signals)
 
 **Classification Layer** - Market state detection using the 9-regime framework
 
-### The 9-Regime Framework
+### The 12-Regime Framework
 Markets are classified across three dimensions:
 
 | Dimension | Levels | Description |
@@ -78,7 +78,7 @@ Markets are classified across three dimensions:
 | **Volume** | High/Low | Trading intensity |
 | **Volatility** | High/Low | Price movement intensity |
 
-**Total Regimes**: 3 × 2 × 2 = **9 Market States**
+**Total Regimes**: 3 × 2 × 2 = **12 Market States**
 
 ### Core Implementation
 ```python
@@ -119,7 +119,7 @@ regime = classifier.classify_regime(market_features)
 
 ### Theoretical vs Empirical Validation
 
-# 9-Grid Theoretical Framework
+# 12-Grid Theoretical Framework
 
 | Regime | Liquidity | Volume | Volatility | Expected Winner | Reasoning |
 |--------|-----------|--------|------------|----------------|-----------|
